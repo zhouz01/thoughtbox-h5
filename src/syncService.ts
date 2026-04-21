@@ -689,10 +689,12 @@ export async function sendMagicLink(email: string): Promise<{ success: boolean; 
   }
 
   try {
+    // 使用 OTP 模式（不设置 emailRedirectTo，强制发送数字验证码）
     const { error } = await client.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
+        // 不设置 emailRedirectTo，确保发送 OTP 而非 Magic Link
       },
     });
 
