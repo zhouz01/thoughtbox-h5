@@ -497,6 +497,7 @@ function RecordCard({
       onTouchMove={onLongPressMove}
       onTouchEnd={onLongPressEnd}
       onTouchCancel={onLongPressEnd}
+      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
       className={`w-full text-left bg-white rounded-2xl p-4 card-press border transition-all duration-200 ${
         selected
           ? "border-stone-400 bg-stone-50/80"
