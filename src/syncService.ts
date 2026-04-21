@@ -660,7 +660,7 @@ export async function sendMagicLink(email: string): Promise<{ success: boolean; 
     const { error } = await client.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        shouldCreateUser: true,
       },
     });
 
