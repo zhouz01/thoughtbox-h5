@@ -159,23 +159,29 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
         recordMap.set(remoteRecord.id, remoteRecord);
         stats.recordsAdded++;
       }
-    } else {
-      // 两端都有
-      const localTime = new Date(localRecord.updatedAt).getTime();
-      const remoteTime = new Date(remoteRecord.updatedAt).getTime();
+      return;
+    }
 
-      // 删除操作优先：任一方删除，保留删除状态
-      if (remoteRecord.deletedAt || localRecord.deletedAt) {
-        // 优先使用 remote 的删除版本（时间更新的）
-        if (remoteRecord.deletedAt && (!localRecord.deletedAt || remoteTime >= localTime)) {
-          recordMap.set(remoteRecord.id, remoteRecord);
-          if (!localRecord.deletedAt) stats.recordsDeleted++;
-        }
-        // 否则保留 local 的删除版本
-      } else if (remoteTime > localTime) {
-        recordMap.set(remoteRecord.id, remoteRecord);
-        stats.recordsUpdated++;
-      }
+    // 两端都有
+    const localTime = new Date(localRecord.updatedAt).getTime();
+    const remoteTime = new Date(remoteRecord.updatedAt).getTime();
+
+    // 删除操作优先：任一方删除，保留删除状态，不再比较时间戳
+    if (localRecord.deletedAt) {
+      // 本地已删除 → 始终保留本地删除状态
+      return;
+    }
+    if (remoteRecord.deletedAt) {
+      // 远程已删除，本地未删除 → 采用远程删除
+      recordMap.set(remoteRecord.id, remoteRecord);
+      stats.recordsDeleted++;
+      return;
+    }
+
+    // 都未删除，按时间戳比较
+    if (remoteTime > localTime) {
+      recordMap.set(remoteRecord.id, remoteRecord);
+      stats.recordsUpdated++;
     }
   });
 
@@ -190,19 +196,24 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
         synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
         stats.synthesesAdded++;
       }
-    } else {
-      const localTime = new Date(localSynthesis.updatedAt).getTime();
-      const remoteTime = new Date(remoteSynthesis.updatedAt).getTime();
+      return;
+    }
 
-      if (remoteSynthesis.deletedAt || localSynthesis.deletedAt) {
-        if (remoteSynthesis.deletedAt && (!localSynthesis.deletedAt || remoteTime >= localTime)) {
-          synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
-          if (!localSynthesis.deletedAt) stats.synthesesDeleted++;
-        }
-      } else if (remoteTime > localTime) {
-        synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
-        stats.synthesesUpdated++;
-      }
+    const localTime = new Date(localSynthesis.updatedAt).getTime();
+    const remoteTime = new Date(remoteSynthesis.updatedAt).getTime();
+
+    if (localSynthesis.deletedAt) {
+      return;
+    }
+    if (remoteSynthesis.deletedAt) {
+      synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
+      stats.synthesesDeleted++;
+      return;
+    }
+
+    if (remoteTime > localTime) {
+      synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
+      stats.synthesesUpdated++;
     }
   });
 
@@ -217,19 +228,24 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
         briefMap.set(remoteBrief.id, remoteBrief);
         stats.briefsAdded++;
       }
-    } else {
-      const localTime = new Date(localBrief.updatedAt).getTime();
-      const remoteTime = new Date(remoteBrief.updatedAt).getTime();
+      return;
+    }
 
-      if (remoteBrief.deletedAt || localBrief.deletedAt) {
-        if (remoteBrief.deletedAt && (!localBrief.deletedAt || remoteTime >= localTime)) {
-          briefMap.set(remoteBrief.id, remoteBrief);
-          if (!localBrief.deletedAt) stats.briefsDeleted++;
-        }
-      } else if (remoteTime > localTime) {
-        briefMap.set(remoteBrief.id, remoteBrief);
-        stats.briefsUpdated++;
-      }
+    const localTime = new Date(localBrief.updatedAt).getTime();
+    const remoteTime = new Date(remoteBrief.updatedAt).getTime();
+
+    if (localBrief.deletedAt) {
+      return;
+    }
+    if (remoteBrief.deletedAt) {
+      briefMap.set(remoteBrief.id, remoteBrief);
+      stats.briefsDeleted++;
+      return;
+    }
+
+    if (remoteTime > localTime) {
+      briefMap.set(remoteBrief.id, remoteBrief);
+      stats.briefsUpdated++;
     }
   });
 
