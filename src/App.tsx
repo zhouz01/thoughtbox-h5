@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { AppProvider } from "./context";
 import Layout from "./components/Layout";
 import InboxPage from "./pages/InboxPage";
@@ -18,29 +18,27 @@ import WorkspacePage from "./pages/WorkspacePage";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppProvider>
-        <Routes>
-          {/* Auth callback 和 Workspace 不需要 Layout */}
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="/workspace" element={<WorkspacePage />} />
+    <AppProvider>
+      <Routes>
+        {/* Auth callback 和 Workspace 不需要 Layout */}
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/workspace" element={<WorkspacePage />} />
 
-          <Route element={<Layout />}>
-            <Route path="/" element={<InboxPage />} />
-            <Route path="/new" element={<NewRecordPage />} />
-            <Route path="/record/:id" element={<RecordDetailPage />} />
-            <Route path="/topics" element={<TopicsPage />} />
-            <Route path="/topics/:name" element={<TopicDetailPage />} />
-            <Route path="/review" element={<ReviewPage />} />
-            <Route path="/settings/ai" element={<AISettingsPage />} />
-            <Route path="/settings/preferences" element={<PreferencesPage />} />
-            <Route path="/settings/sync" element={<SyncSettingsPage />} />
-            <Route path="/synthesis/:id" element={<SynthesisDetailPage />} />
-            <Route path="/briefs" element={<BriefListPage />} />
-            <Route path="/brief/:id" element={<BriefDetailPage />} />
-          </Route>
-        </Routes>
-      </AppProvider>
-    </BrowserRouter>
+        <Route element={<Layout />}>
+          <Route path="/" element={<InboxPage />} />
+          <Route path="/new" element={<NewRecordPage />} />
+          <Route path="/record/:id" element={<RecordDetailPage />} />
+          <Route path="/topics" element={<TopicsPage />} />
+          <Route path="/topics/:name" element={<TopicDetailPage />} />
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/settings/ai" element={<AISettingsPage />} />
+          <Route path="/settings/preferences" element={<PreferencesPage />} />
+          <Route path="/settings/sync" element={<SyncSettingsPage />} />
+          <Route path="/synthesis/:id" element={<SynthesisDetailPage />} />
+          <Route path="/briefs" element={<BriefListPage />} />
+          <Route path="/brief/:id" element={<BriefDetailPage />} />
+        </Route>
+      </Routes>
+    </AppProvider>
   );
 }
