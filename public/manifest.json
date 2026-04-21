@@ -1,0 +1,18 @@
+{
+  "name": "ThoughtBox · 想法记录",
+  "short_name": "ThoughtBox",
+  "description": "设计师自用的想法记录工具，先快速记住，再由 AI 自动整理",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf9",
+  "theme_color": "#1c1917",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
