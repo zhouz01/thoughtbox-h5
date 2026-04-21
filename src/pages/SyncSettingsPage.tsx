@@ -34,7 +34,7 @@ export default function SyncSettingsPage() {
   const [backupState, setBackupState] = useState<"idle" | "backing_up" | "restoring">("idle");
   const [backupMessage, setBackupMessage] = useState("");
 
-  const isConfigured = !!(config.supabaseUrl && config.supabaseKey);
+  const isConfigured = !!(config.supabaseUrl && config.supabaseAnonKey);
   const isLoggedIn = !!session?.email;
 
   // 当前设备名
@@ -96,11 +96,11 @@ export default function SyncSettingsPage() {
 
   // 发送登录链接
   const handleSendLink = async () => {
-    if (!email.trim() || !config.supabaseUrl || !config.supabaseKey) return;
+    if (!email.trim() || !config.supabaseUrl || !config.supabaseAnonKey) return;
     setSendingLink(true);
     setLinkSent(false);
     try {
-      const result = await sendMagicLink(email.trim(), config.supabaseUrl, config.supabaseKey);
+      const result = await sendMagicLink(email.trim());
       if (result.success) {
         setLinkSent(true);
       } else {
@@ -275,8 +275,8 @@ export default function SyncSettingsPage() {
               <div className="relative">
                 <input
                   type={showKey ? "text" : "password"}
-                  value={config.supabaseKey}
-                  onChange={(e) => handleSaveConfig({ supabaseKey: e.target.value })}
+                  value={config.supabaseAnonKey}
+                  onChange={(e) => handleSaveConfig({ supabaseAnonKey: e.target.value })}
                   placeholder="eyJ..."
                   className="w-full px-3 py-2.5 pr-12 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all"
                 />
