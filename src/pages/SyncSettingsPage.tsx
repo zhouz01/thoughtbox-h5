@@ -12,8 +12,8 @@ import {
 import {
   resetSupabaseClient,
   initSupabaseClient,
-  signupWithEmailPassword,
-  loginWithEmailPassword,
+  sendOtpEmail,
+  verifyOtp,
   logoutSync,
   getCurrentUser,
   pushToCloud,

@@ -682,35 +682,6 @@ export async function sendOtpEmail(email: string): Promise<{ success: boolean; e
   }
 }
 
-export async function verifyOtp(email: string, token: string): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient();
-  if (!client) {
-    return { success: false, error: "同步服务未配置" };
-  }
-
-  try {
-    const { error } = await client.auth.verifyOtp({
-      email,
-      token,
-      type: "email",
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    saveSyncSession({ isLoggedIn: true });
-    updateSyncMeta({ lastSyncStatus: "success" });
-    addSyncLogEntry({ action: "verify_otp", status: "success", details: `登录成功: ${email}` });
-
-    return { success: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "验证失败";
-    addSyncLogEntry({ action: "verify_otp", status: "failed", error: errorMessage });
-    return { success: false, error: errorMessage };
-  }
-}
-
 export async function sendMagicLink(email: string): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient();
   if (!client) {
