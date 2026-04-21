@@ -696,8 +696,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setBriefs(loadBriefs());
       setOrganizeStatus("已生成 Brief");
       return brief;
-    } catch {
-      setOrganizeStatus("Brief 生成失败");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "未知错误";
+      setOrganizeStatus(`Brief 生成失败：${msg}`);
+      console.error("Brief 生成失败:", err);
       return null;
     }
   }, [records]);
