@@ -421,6 +421,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const filteredRecords = records.filter((r) => {
+    if (r.deletedAt) return false;
     if (!showArchived && r.archived) return false;
     if (showArchived && !r.archived) return false;
     if (filterType !== "全部" && r.type !== filterType) return false;
@@ -517,7 +518,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const preferenceStatsValue = getPreferenceStats(preferences);
 
   const reloadFromStorage = useCallback(() => {
-    setRecords(loadRecords());
+    setRecords(loadVisibleRecords());
     setSyntheses(loadVisibleSyntheses());
     setBriefs(loadVisibleBriefs());
     setPreferences(loadPreferences());
