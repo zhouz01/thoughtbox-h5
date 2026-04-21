@@ -15,6 +15,9 @@ import {
   createLocalBackup,
   restoreFromLocalBackup,
   sendMagicLink,
+  verifyOtp,
+  signInWithPassword,
+  signUpWithPassword,
 } from "../syncService";
 
 export default function SyncSettingsPage() {
@@ -31,6 +34,13 @@ export default function SyncSettingsPage() {
   const [email, setEmail] = useState(session?.email || "");
   const [sendingLink, setSendingLink] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginMode, setLoginMode] = useState<"otp" | "password">("password");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [backupState, setBackupState] = useState<"idle" | "backing_up" | "restoring">("idle");
   const [backupMessage, setBackupMessage] = useState("");
 
@@ -99,6 +109,8 @@ export default function SyncSettingsPage() {
     if (!email.trim() || !config.supabaseUrl || !config.supabaseAnonKey) return;
     setSendingLink(true);
     setLinkSent(false);
+    setOtpCode("");
+    setVerifyError("");
     try {
       const result = await sendMagicLink(email.trim());
       if (result.success) {
@@ -112,6 +124,80 @@ export default function SyncSettingsPage() {
       setSyncState("error");
     } finally {
       setSendingLink(false);
+    }
+  };
+
+  // 验证 OTP
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim() || !email.trim()) return;
+    setVerifying(true);
+    setVerifyError("");
+    try {
+      const result = await verifyOtp(email.trim(), otpCode.trim());
+      if (result.success) {
+        setLinkSent(false);
+        setOtpCode("");
+        setSyncMessage("登录成功");
+        setSyncState("success");
+        // 刷新页面状态
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      } else {
+        setVerifyError(result.error || "验证失败，请重试");
+      }
+    } catch {
+      setVerifyError("网络错误，请重试");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // 邮箱密码登录
+  const handlePasswordLogin = async () => {
+    if (!email.trim() || !password.trim()) return;
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const result = await signInWithPassword(email.trim(), password);
+      if (result.success) {
+        setSyncMessage("登录成功");
+        setSyncState("success");
+        setTimeout(() => { window.location.reload(); }, 800);
+      } else {
+        setAuthError(result.error || "登录失败");
+      }
+    } catch {
+      setAuthError("网络错误，请重试");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  // 邮箱密码注册
+  const handlePasswordSignUp = async () => {
+    if (!email.trim() || !password.trim()) return;
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const result = await signUpWithPassword(email.trim(), password);
+      if (result.success) {
+        // 注册可能需要确认邮箱
+        const session = getSyncSession();
+        if (session?.email) {
+          setSyncMessage("注册并登录成功");
+          setSyncState("success");
+          setTimeout(() => { window.location.reload(); }, 800);
+        } else {
+          setAuthError("注册成功，请查收邮箱确认链接后登录");
+        }
+      } else {
+        setAuthError(result.error || "注册失败");
+      }
+    } catch {
+      setAuthError("网络错误，请重试");
+    } finally {
+      setAuthBusy(false);
     }
   };
 
@@ -319,24 +405,107 @@ export default function SyncSettingsPage() {
             ) : (
               <div className="space-y-3">
                 <p className="text-[13px] text-stone-500">当前未登录</p>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="输入邮箱地址"
-                    className="flex-1 px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all"
-                  />
+
+                {/* 登录方式切换 */}
+                <div className="flex bg-stone-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => { setLoginMode("password"); setLinkSent(false); setAuthError(""); setVerifyError(""); }}
+                    className={`flex-1 py-1.5 rounded-md text-[12px] font-medium transition-colors ${loginMode === "password" ? "bg-white text-stone-800 shadow-sm" : "text-stone-500"}`}
+                  >
+                    密码登录
+                  </button>
+                  <button
+                    onClick={() => { setLoginMode("otp"); setAuthError(""); setVerifyError(""); }}
+                    className={`flex-1 py-1.5 rounded-md text-[12px] font-medium transition-colors ${loginMode === "otp" ? "bg-white text-stone-800 shadow-sm" : "text-stone-500"}`}
+                  >
+                    验证码登录
+                  </button>
                 </div>
-                <button
-                  onClick={handleSendLink}
-                  disabled={sendingLink || !email.trim() || !isConfigured}
-                  className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50"
-                >
-                  {sendingLink ? "发送中…" : "发送登录链接"}
-                </button>
-                {linkSent && (
-                  <p className="text-[12px] text-emerald-600">登录链接已发送到邮箱，请查收</p>
+
+                {/* 邮箱输入 */}
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="输入邮箱地址"
+                  disabled={loginMode === "otp" && linkSent}
+                  className="w-full px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all disabled:opacity-60"
+                />
+
+                {/* 密码登录模式 */}
+                {loginMode === "password" && (
+                  <>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="输入密码（至少6位）"
+                      className="w-full px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all"
+                    />
+                    <button
+                      onClick={handlePasswordLogin}
+                      disabled={authBusy || !email.trim() || !password.trim() || !isConfigured}
+                      className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50"
+                    >
+                      {authBusy ? "登录中…" : "登录"}
+                    </button>
+                    <button
+                      onClick={handlePasswordSignUp}
+                      disabled={authBusy || !email.trim() || password.length < 6 || !isConfigured}
+                      className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-stone-100 text-stone-600 active:bg-stone-200 transition-colors disabled:opacity-50"
+                    >
+                      {authBusy ? "注册中…" : "注册新账号"}
+                    </button>
+                    {authError && (
+                      <p className="text-[12px] text-red-500">{authError}</p>
+                    )}
+                  </>
+                )}
+
+                {/* 验证码登录模式 */}
+                {loginMode === "otp" && !linkSent && (
+                  <>
+                    <button
+                      onClick={handleSendLink}
+                      disabled={sendingLink || !email.trim() || !isConfigured}
+                      className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50"
+                    >
+                      {sendingLink ? "发送中…" : "发送验证码"}
+                    </button>
+                  </>
+                )}
+
+                {loginMode === "otp" && linkSent && (
+                  <>
+                    <p className="text-[12px] text-emerald-600">验证码已发送到 {email}，请查收邮箱</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                        placeholder="输入6位验证码"
+                        className="flex-1 px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 tracking-[0.3em] text-center font-mono transition-all"
+                      />
+                      <button
+                        onClick={handleVerifyOtp}
+                        disabled={verifying || otpCode.length < 6}
+                        className="px-4 py-2.5 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50 shrink-0"
+                      >
+                        {verifying ? "验证中…" : "验证"}
+                      </button>
+                    </div>
+                    {verifyError && (
+                      <p className="text-[12px] text-red-500">{verifyError}</p>
+                    )}
+                    <button
+                      onClick={() => { setLinkSent(false); setOtpCode(""); setVerifyError(""); }}
+                      className="text-[12px] text-stone-400 underline"
+                    >
+                      重新发送验证码
+                    </button>
+                  </>
                 )}
               </div>
             )}

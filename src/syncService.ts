@@ -822,6 +822,83 @@ export async function verifyOtp(email: string, token: string): Promise<{ success
   }
 }
 
+export async function signInWithPassword(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "Supabase 未配置" };
+  }
+
+  try {
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (data.session) {
+      const session: SyncSession = {
+        userId: data.session.user.id,
+        email: data.session.user.email || email,
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        expiresAt: data.session.expires_at || Math.floor(Date.now() / 1000) + 3600,
+      };
+      saveSyncSession(session);
+
+      const config = getSyncConfig();
+      config.syncEmail = email;
+      saveSyncConfig(config);
+    }
+
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "登录失败";
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function signUpWithPassword(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "Supabase 未配置" };
+  }
+
+  try {
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // signUp 可能需要确认邮箱，也可能直接返回 session
+    if (data.session) {
+      const session: SyncSession = {
+        userId: data.session.user.id,
+        email: data.session.user.email || email,
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        expiresAt: data.session.expires_at || Math.floor(Date.now() / 1000) + 3600,
+      };
+      saveSyncSession(session);
+
+      const config = getSyncConfig();
+      config.syncEmail = email;
+      saveSyncConfig(config);
+    }
+
+    return { success: true, error: data.session ? undefined : "注册成功，请查收邮箱确认链接后登录" };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "注册失败";
+    return { success: false, error: errorMessage };
+  }
+}
+
 export async function handleAuthCallback(access_token: string, refresh_token: string): Promise<boolean> {
   const client = getSupabaseClient();
   if (!client) {
