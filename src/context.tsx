@@ -693,7 +693,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const brief = await generateBriefFromRecord(record, profile, topicCtx, prefCtx);
       addBrief(brief);
-      setBriefs(loadBriefs());
+      setBriefs(loadVisibleBriefs());
       setOrganizeStatus("已生成 Brief");
       return brief;
     } catch (err) {
@@ -717,7 +717,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const brief = await generateBriefFromSynthesis(synthesis, profile, topicCtx, prefCtx);
       addBrief(brief);
-      setBriefs(loadBriefs());
+      setBriefs(loadVisibleBriefs());
       setOrganizeStatus("已生成 Brief");
       return brief;
     } catch {
@@ -728,12 +728,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateBriefFn = useCallback((brief: ProjectBrief) => {
     storageUpdateBrief(brief);
-    setBriefs(loadBriefs());
+    setBriefs(loadVisibleBriefs());
   }, []);
 
   const deleteBriefByIdFn = useCallback((id: string) => {
     storageDeleteBrief(id);
-    setBriefs(loadBriefs());
+    setBriefs(loadVisibleBriefs());
   }, []);
 
   const getBriefFn = useCallback((id: string): ProjectBrief | undefined => {
@@ -757,7 +757,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
     storageUpdateBrief(updated);
-    setBriefs(loadBriefs());
+    setBriefs(loadVisibleBriefs());
   }, []);
 
   const addBriefActionFn = useCallback((briefId: string, content: string) => {
@@ -778,7 +778,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
     storageUpdateBrief(updated);
-    setBriefs(loadBriefs());
+    setBriefs(loadVisibleBriefs());
   }, []);
 
   const updateBriefActionFn = useCallback((briefId: string, actionId: string, content: string) => {
@@ -794,7 +794,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
     storageUpdateBrief(updated);
-    setBriefs(loadBriefs());
+    setBriefs(loadVisibleBriefs());
   }, []);
 
   const deleteBriefActionFn = useCallback((briefId: string, actionId: string) => {
@@ -807,7 +807,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
     storageUpdateBrief(updated);
-    setBriefs(loadBriefs());
+    setBriefs(loadVisibleBriefs());
   }, []);
 
   return (

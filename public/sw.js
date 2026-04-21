@@ -1,4 +1,4 @@
-const CACHE_NAME = "thoughtbox-v1.7";
+const CACHE_NAME = "thoughtbox-v1.8";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
