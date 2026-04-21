@@ -72,6 +72,8 @@ interface AppContextType {
   testConnection: (profile: AIProfile) => Promise<{ ok: boolean; message: string }>;
   // 整理状态提示
   organizeStatus: string | null;
+  // 同步后刷新状态
+  reloadFromStorage: () => void;
   // 偏好系统
   preferences: AIPreferences;
   refreshPreferences: () => void;
@@ -514,6 +516,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const preferenceStatsValue = getPreferenceStats(preferences);
 
+  const reloadFromStorage = useCallback(() => {
+    setRecords(loadRecords());
+    setSyntheses(loadVisibleSyntheses());
+    setBriefs(loadVisibleBriefs());
+    setPreferences(loadPreferences());
+    setProfiles(loadProfiles());
+  }, []);
+
   // ============================================================
   // Synthesis 批量整理操作
   // ============================================================
@@ -824,6 +834,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         switchAIProfile: switchAIProfileFn,
         testConnection: testConnectionFn,
         organizeStatus,
+        reloadFromStorage,
         // 偏好系统
         preferences,
         refreshPreferences: refreshPreferencesFn,

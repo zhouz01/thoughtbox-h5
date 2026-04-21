@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useApp } from "../context";
 import type { SyncStatus } from "../types";
 import {
   getSyncConfig,
@@ -103,6 +104,7 @@ const InfoIcon = () => (
 
 export default function SyncSettingsPage() {
   const navigate = useNavigate();
+  const { reloadFromStorage } = useApp();
   const [config, setConfig] = useState(getSyncConfig());
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("未配置");
@@ -232,6 +234,9 @@ export default function SyncSettingsPage() {
     setSyncMeta(getSyncMeta());
     setSyncLog(getSyncLog());
     setMessage({ type: result.success ? "success" : "error", text: result.error || result.message });
+    if (result.success) {
+      reloadFromStorage();
+    }
     setTimeout(() => setMessage(null), 5000);
   };
 
