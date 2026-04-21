@@ -8,6 +8,7 @@ import {
   isSyncLoggedIn,
   getSyncMeta,
   getSyncLog,
+  APP_VERSION,
 } from "../syncConfig";
 import {
   resetSupabaseClient,
@@ -533,6 +534,24 @@ export default function SyncSettingsPage() {
             </div>
           </div>
         )}
+
+        {/* 版本信息与强制刷新 */}
+        <div className="bg-stone-900/30 rounded-2xl p-5 border border-stone-800/30">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-stone-500">版本 {APP_VERSION}</p>
+            <button
+              onClick={() => {
+                if ('caches' in window) {
+                  caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+                }
+                window.location.reload();
+              }}
+              className="text-xs text-stone-400 hover:text-stone-200 transition-colors"
+            >
+              清除缓存并刷新
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

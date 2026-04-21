@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ThoughtBox" />
     <meta name="description" content="设计师自用的想法记录工具" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon.svg" />
@@ -17,11 +20,25 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            // 如果有新的 Service Worker 等待激活，强制刷新
+            reg.addEventListener('updatefound', function() {
+              var newWorker = reg.installing;
+              newWorker.addEventListener('statechange', function() {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // 新版本已安装，强制页面刷新以使用新版本
+                  window.location.reload();
+                }
+              });
+            });
+            // 每次加载都检查更新
+            reg.update();
+          }).catch(function() {});
         });
-      }
+      })();
     </script>
   </body>
 </html>
