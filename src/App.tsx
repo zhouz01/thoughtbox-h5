@@ -14,15 +14,17 @@ import BriefListPage from "./pages/BriefListPage";
 import BriefDetailPage from "./pages/BriefDetailPage";
 import SyncSettingsPage from "./pages/SyncSettingsPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import WorkspacePage from "./pages/WorkspacePage";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AppProvider>
         <Routes>
-          {/* Auth callback 不需要 Layout */}
+          {/* Auth callback 和 Workspace 不需要 Layout */}
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          
+          <Route path="/workspace" element={<WorkspacePage />} />
+
           <Route element={<Layout />}>
             <Route path="/" element={<InboxPage />} />
             <Route path="/new" element={<NewRecordPage />} />

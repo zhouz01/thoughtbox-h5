@@ -248,6 +248,15 @@ export default function InboxPage() {
               </svg>
               数据同步
             </MenuButton>
+            <MenuButton onClick={() => { navigate("/workspace"); setShowMenu(false); }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+              打开工作台
+            </MenuButton>
             <MenuButton onClick={() => { navigate("/settings/ai"); setShowMenu(false); }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
                 <circle cx="12" cy="12" r="3" />

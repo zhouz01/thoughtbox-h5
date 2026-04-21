@@ -142,11 +142,19 @@ export default function ReviewPage() {
   return (
     <div className="px-5 pt-8 pb-4">
       {/* 标题区 */}
-      <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-stone-900 tracking-tight">
-          回顾
-        </h1>
-        <p className="text-[13px] text-stone-400 mt-0.5">回看最近的思考脉络</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-[22px] font-bold text-stone-900 tracking-tight">
+            回顾
+          </h1>
+          <p className="text-[13px] text-stone-400 mt-0.5">回看最近的思考脉络</p>
+        </div>
+        <button
+          onClick={() => navigate("/workspace")}
+          className="text-[12px] text-stone-500 hover:text-stone-800 px-3 py-1.5 bg-stone-50 rounded-lg border border-stone-200/60 hover:border-stone-300 transition-colors"
+        >
+          进入工作台 →
+        </button>
       </div>
 
       {/* 一句话总结 */}
