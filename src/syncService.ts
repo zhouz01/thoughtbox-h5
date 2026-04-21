@@ -178,7 +178,19 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
       return;
     }
 
-    // 都未删除，按时间戳比较
+    // 归档操作优先：任一方归档，保留归档状态（避免设备时间不同步导致归档丢失）
+    if (localRecord.archived && !remoteRecord.archived) {
+      // 本地已归档，远程未归档 → 保留本地归档状态
+      return;
+    }
+    if (remoteRecord.archived && !localRecord.archived) {
+      // 远程已归档，本地未归档 → 采用远程归档状态
+      recordMap.set(remoteRecord.id, remoteRecord);
+      stats.recordsUpdated++;
+      return;
+    }
+
+    // 都未删除且归档状态一致，按时间戳比较
     if (remoteTime > localTime) {
       recordMap.set(remoteRecord.id, remoteRecord);
       stats.recordsUpdated++;
