@@ -654,44 +654,45 @@ export function initSupabaseClient(): SupabaseClient | null {
   return getSupabaseClient();
 }
 
-export async function signupWithEmailPassword(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+export async function sendOtpEmail(email: string): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: "同步服务未配置" };
   }
 
   try {
-    const { error } = await client.auth.signUp({
+    const { error } = await client.auth.signInWithOtp({
       email,
-      password,
+      options: {
+        shouldCreateUser: true,
+      },
     });
 
     if (error) {
       throw error;
     }
 
-    saveSyncSession({ isLoggedIn: true });
-    updateSyncMeta({ lastSyncStatus: "success" });
-    addSyncLogEntry({ action: "signup", status: "success", details: `注册成功: ${email}` });
+    addSyncLogEntry({ action: "send_otp", status: "success", details: `验证码已发送: ${email}` });
 
     return { success: true };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "注册失败";
-    addSyncLogEntry({ action: "signup", status: "failed", error: errorMessage });
+    const errorMessage = error instanceof Error ? error.message : "发送失败";
+    addSyncLogEntry({ action: "send_otp", status: "failed", error: errorMessage });
     return { success: false, error: errorMessage };
   }
 }
 
-export async function loginWithEmailPassword(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+export async function verifyOtp(email: string, token: string): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: "同步服务未配置" };
   }
 
   try {
-    const { error } = await client.auth.signInWithPassword({
+    const { error } = await client.auth.verifyOtp({
       email,
-      password,
+      token,
+      type: "email",
     });
 
     if (error) {
@@ -700,12 +701,12 @@ export async function loginWithEmailPassword(email: string, password: string): P
 
     saveSyncSession({ isLoggedIn: true });
     updateSyncMeta({ lastSyncStatus: "success" });
-    addSyncLogEntry({ action: "login", status: "success", details: `登录成功: ${email}` });
+    addSyncLogEntry({ action: "verify_otp", status: "success", details: `登录成功: ${email}` });
 
     return { success: true };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "登录失败";
-    addSyncLogEntry({ action: "login", status: "failed", error: errorMessage });
+    const errorMessage = error instanceof Error ? error.message : "验证失败";
+    addSyncLogEntry({ action: "verify_otp", status: "failed", error: errorMessage });
     return { success: false, error: errorMessage };
   }
 }

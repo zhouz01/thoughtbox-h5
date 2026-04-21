@@ -112,8 +112,8 @@ export default function SyncSettingsPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [isSignup, setIsSignup] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [showOtpInput, setShowOtpInput] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     const loggedIn = isSyncLoggedIn();
@@ -162,9 +162,9 @@ export default function SyncSettingsPage() {
     }
   };
 
-  const handleLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      setMessage({ type: "error", text: "请输入邮箱和密码" });
+  const handleSendOtp = async () => {
+    if (!loginEmail.trim()) {
+      setMessage({ type: "error", text: "请输入邮箱" });
       return;
     }
     if (!config.supabaseUrl || !config.supabaseAnonKey) {
@@ -172,16 +172,31 @@ export default function SyncSettingsPage() {
       return;
     }
     setIsLoading(true);
-    const result = isSignup
-      ? await signupWithEmailPassword(loginEmail.trim(), loginPassword.trim())
-      : await loginWithEmailPassword(loginEmail.trim(), loginPassword.trim());
+    const result = await sendOtpEmail(loginEmail.trim());
     setIsLoading(false);
     if (result.success) {
-      setMessage({ type: "success", text: isSignup ? "注册成功" : "登录成功" });
-      setLoginPassword("");
+      setShowOtpInput(true);
+      setMessage({ type: "success", text: "验证码已发送，请查收邮件" });
+    } else {
+      setMessage({ type: "error", text: result.error || "发送失败" });
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim()) {
+      setMessage({ type: "error", text: "请输入验证码" });
+      return;
+    }
+    setIsLoading(true);
+    const result = await verifyOtp(loginEmail.trim(), otpCode.trim());
+    setIsLoading(false);
+    if (result.success) {
+      setMessage({ type: "success", text: "登录成功" });
+      setShowOtpInput(false);
+      setOtpCode("");
       refreshStatus();
     } else {
-      setMessage({ type: "error", text: result.error || (isSignup ? "注册失败" : "登录失败") });
+      setMessage({ type: "error", text: result.error || "验证失败" });
     }
   };
 
@@ -370,33 +385,49 @@ export default function SyncSettingsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="输入邮箱地址"
-                className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
-              />
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="输入密码（至少 6 位）"
-                className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
-              />
-              <button
-                onClick={handleLogin}
-                disabled={isLoading || !config.supabaseUrl || !config.supabaseAnonKey}
-                className="w-full bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 disabled:text-stone-500 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
-              >
-                {isLoading ? "处理中..." : (isSignup ? "注册账号" : "登录")}
-              </button>
-              <button
-                onClick={() => setIsSignup(!isSignup)}
-                className="w-full text-xs text-stone-500 hover:text-stone-400 py-2"
-              >
-                {isSignup ? "已有账号？点击登录" : "没有账号？点击注册"}
-              </button>
+              {!showOtpInput ? (
+                <>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="输入邮箱地址"
+                    className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
+                  />
+                  <button
+                    onClick={handleSendOtp}
+                    disabled={isLoading || !config.supabaseUrl || !config.supabaseAnonKey}
+                    className="w-full bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 disabled:text-stone-500 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
+                  >
+                    {isLoading ? "发送中..." : "发送验证码"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    placeholder="输入邮箱验证码"
+                    className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleVerifyOtp}
+                      disabled={isLoading}
+                      className="flex-1 bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
+                    >
+                      {isLoading ? "验证中..." : "验证登录"}
+                    </button>
+                    <button
+                      onClick={() => setShowOtpInput(false)}
+                      className="px-4 py-3 border border-stone-700/50 text-stone-400 rounded-xl text-sm hover:bg-stone-800/50 transition-colors"
+                    >
+                      返回
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
