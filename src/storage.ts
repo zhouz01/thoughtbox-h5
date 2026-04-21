@@ -4,6 +4,7 @@ const STORAGE_KEY = "thoughtbox_records";
 
 /**
  * 加载所有记录（包括已软删除的，用于同步）
+ * 别名：loadAllRecords
  */
 export function loadRecords(): ThoughtRecord[] {
   try {
@@ -14,6 +15,9 @@ export function loadRecords(): ThoughtRecord[] {
     return [];
   }
 }
+
+// 别名，用于 leancloudService
+export const loadAllRecords = loadRecords;
 
 /**
  * 加载可见记录（排除已软删除的，用于 UI 展示）

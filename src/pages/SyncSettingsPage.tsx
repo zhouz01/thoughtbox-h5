@@ -1,29 +1,27 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import type { SyncStatus, SyncLogEntry, SyncMeta } from "../types";
+import type { LCConfig, LCMeta, LCLogEntry } from "../leancloudConfig";
 import {
-  getSyncConfig,
-  saveSyncConfig,
-  clearSyncConfig,
-  isSyncLoggedIn,
-  getSyncMeta,
-  getSyncLog,
-  getDeviceName,
-} from "../syncConfig";
+  getLCConfig,
+  saveLCConfig,
+  clearLCConfig,
+  isLCLoggedIn,
+  getLCMeta,
+  getLCLog,
+} from "../leancloudConfig";
 import {
-  resetSupabaseClient,
-  sendMagicLink,
-  verifyOtp,
-  logoutSync,
-  getCurrentUser,
-  pushToCloud,
-  pullFromCloud,
-  bidirectionalSync,
-  createLocalBackup,
-  getLocalBackups,
-  restoreFromLocalBackup,
+  initLeanCloud,
+  resetLeanCloud,
+  loginWithEmail,
+  signupWithEmail,
+  logoutLC,
+  getCurrentLCUser,
+  pushToLeanCloud,
+  pullFromLeanCloud,
+  bidirectionalSyncLC,
   type SyncOperationResult,
-} from "../syncService";
+} from "../leancloudService";
+import { createLocalBackup, getLocalBackups, restoreFromLocalBackup } from "../syncService";
 
 // 内联 SVG 图标
 const ArrowLeftIcon = () => (
@@ -113,28 +111,30 @@ const InfoIcon = () => (
   </svg>
 );
 
+type SyncStatus = "未配置" | "未登录" | "已连接" | "同步中" | "同步成功" | "同步失败";
+
 export default function SyncSettingsPage() {
   const navigate = useNavigate();
-  const [config, setConfig] = useState(getSyncConfig());
+  const [config, setConfig] = useState<LCConfig>(getLCConfig());
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("未配置");
-  const [syncMeta, setSyncMeta] = useState<SyncMeta>(getSyncMeta());
-  const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
+  const [syncMeta, setSyncMeta] = useState<LCMeta>(getLCMeta());
+  const [syncLog, setSyncLog] = useState<LCLogEntry[]>([]);
   const [userEmail, setUserEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [loginPassword, setLoginPassword] = useState("");
+  const [isSignup, setIsSignup] = useState(false);
 
   const refreshStatus = useCallback(async () => {
-    const loggedIn = isSyncLoggedIn();
+    const loggedIn = isLCLoggedIn();
     setIsLoggedIn(loggedIn);
-    setSyncMeta(getSyncMeta());
-    setSyncLog(getSyncLog());
+    setSyncMeta(getLCMeta());
+    setSyncLog(getLCLog());
 
-    if (!config.supabaseUrl || !config.supabaseAnonKey) {
+    if (!config.appId || !config.appKey) {
       setSyncStatus("未配置");
       return;
     }
@@ -142,22 +142,25 @@ export default function SyncSettingsPage() {
       setSyncStatus("未登录");
       return;
     }
-    const user = await getCurrentUser();
+    
+    initLeanCloud();
+    const user = await getCurrentLCUser();
     if (user) {
       setUserEmail(user.email);
       setSyncStatus("已连接");
     } else {
       setSyncStatus("未登录");
     }
-  }, [config.supabaseUrl, config.supabaseAnonKey]);
+  }, [config.appId, config.appKey]);
 
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
 
   const handleSaveConfig = () => {
-    saveSyncConfig(config);
-    resetSupabaseClient();
+    saveLCConfig(config);
+    resetLeanCloud();
+    initLeanCloud();
     setMessage({ type: "success", text: "配置已保存" });
     setTimeout(() => setMessage(null), 3000);
     refreshStatus();
@@ -165,53 +168,38 @@ export default function SyncSettingsPage() {
 
   const handleClearConfig = () => {
     if (confirm("确定要清除同步配置吗？本地数据不会丢失。")) {
-      clearSyncConfig();
-      logoutSync();
-      resetSupabaseClient();
-      setConfig(getSyncConfig());
+      clearLCConfig();
+      logoutLC();
+      resetLeanCloud();
+      setConfig(getLCConfig());
       setMessage({ type: "success", text: "配置已清除" });
       refreshStatus();
     }
   };
 
-  const handleSendOtp = async () => {
-    if (!loginEmail.trim()) {
-      setMessage({ type: "error", text: "请输入邮箱" });
+  const handleLogin = async () => {
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setMessage({ type: "error", text: "请输入邮箱和密码" });
       return;
     }
     setIsLoading(true);
-    const result = await sendMagicLink(loginEmail.trim());
+    const result = isSignup
+      ? await signupWithEmail(loginEmail.trim(), loginPassword.trim())
+      : await loginWithEmail(loginEmail.trim(), loginPassword.trim());
     setIsLoading(false);
     if (result.success) {
-      setShowOtpInput(true);
-      setMessage({ type: "success", text: "验证码已发送，请查收邮件" });
-    } else {
-      setMessage({ type: "error", text: result.error || "发送失败" });
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpCode.trim()) {
-      setMessage({ type: "error", text: "请输入验证码" });
-      return;
-    }
-    setIsLoading(true);
-    const result = await verifyOtp(loginEmail.trim(), otpCode.trim());
-    setIsLoading(false);
-    if (result.success) {
-      setMessage({ type: "success", text: "登录成功" });
-      setShowOtpInput(false);
-      setOtpCode("");
+      setMessage({ type: "success", text: isSignup ? "注册成功" : "登录成功" });
+      setLoginPassword("");
       refreshStatus();
     } else {
-      setMessage({ type: "error", text: result.error || "验证失败" });
+      setMessage({ type: "error", text: result.error || (isSignup ? "注册失败" : "登录失败") });
     }
   };
 
   const handleLogout = async () => {
     if (confirm("确定要退出同步账号吗？本地数据不会丢失。")) {
-      await logoutSync();
-      resetSupabaseClient();
+      await logoutLC();
+      resetLeanCloud();
       setMessage({ type: "success", text: "已退出登录" });
       refreshStatus();
     }
@@ -220,24 +208,26 @@ export default function SyncSettingsPage() {
   const handleSync = async (action: "push" | "pull" | "merge") => {
     setIsLoading(true);
     setSyncStatus("同步中");
-    if (config.autoBackupBeforeSync) {
-      createLocalBackup(`before_${action}`);
-    }
+    
+    // 创建本地备份
+    createLocalBackup(`before_${action}`);
+    
     let result: SyncOperationResult;
     switch (action) {
       case "push":
-        result = await pushToCloud();
+        result = await pushToLeanCloud();
         break;
       case "pull":
-        result = await pullFromCloud();
+        result = await pullFromLeanCloud();
         break;
       default:
-        result = await bidirectionalSync();
+        result = await bidirectionalSyncLC();
     }
+    
     setIsLoading(false);
     setSyncStatus(result.success ? "同步成功" : "同步失败");
-    setSyncMeta(getSyncMeta());
-    setSyncLog(getSyncLog());
+    setSyncMeta(getLCMeta());
+    setSyncLog(getLCLog());
     setMessage({ type: result.success ? "success" : "error", text: result.error || result.message });
     setTimeout(() => setMessage(null), 5000);
   };
@@ -325,37 +315,28 @@ export default function SyncSettingsPage() {
         <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
           <h2 className="text-sm font-medium text-stone-100 mb-4 flex items-center gap-2">
             <LaptopIcon />
-            同步服务配置
+            LeanCloud 配置
           </h2>
           <div className="space-y-4">
             <div>
-              <label className="text-xs text-stone-500 mb-1.5 block">Supabase 地址</label>
+              <label className="text-xs text-stone-500 mb-1.5 block">App ID</label>
               <input
                 type="text"
-                value={config.supabaseUrl}
-                onChange={(e) => setConfig({ ...config, supabaseUrl: e.target.value })}
-                placeholder="https://your-project.supabase.co"
+                value={config.appId}
+                onChange={(e) => setConfig({ ...config, appId: e.target.value })}
+                placeholder="请输入 LeanCloud App ID"
                 className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
               />
             </div>
             <div>
-              <label className="text-xs text-stone-500 mb-1.5 block">Publishable Key (Anon Key)</label>
+              <label className="text-xs text-stone-500 mb-1.5 block">App Key</label>
               <input
                 type="password"
-                value={config.supabaseAnonKey}
-                onChange={(e) => setConfig({ ...config, supabaseAnonKey: e.target.value })}
-                placeholder="eyJhbGciOiJIUzI1NiIs..."
+                value={config.appKey}
+                onChange={(e) => setConfig({ ...config, appKey: e.target.value })}
+                placeholder="请输入 LeanCloud App Key"
                 className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
               />
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-stone-400">同步前自动本地备份</span>
-              <button
-                onClick={() => setConfig({ ...config, autoBackupBeforeSync: !config.autoBackupBeforeSync })}
-                className={`w-11 h-6 rounded-full transition-colors ${config.autoBackupBeforeSync ? "bg-teal-500" : "bg-stone-700"}`}
-              >
-                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${config.autoBackupBeforeSync ? "translate-x-6" : "translate-x-1"} mt-1`} />
-              </button>
             </div>
             <div className="flex gap-3">
               <button onClick={handleSaveConfig} className="flex-1 bg-teal-500 hover:bg-teal-400 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
@@ -378,7 +359,7 @@ export default function SyncSettingsPage() {
                   <CheckIcon />
                 </div>
                 <div>
-                  <p className="text-sm text-stone-200">已连接到同步服务</p>
+                  <p className="text-sm text-stone-200">已连接到 LeanCloud</p>
                   <p className="text-xs text-stone-500">{userEmail}</p>
                 </div>
               </div>
@@ -389,49 +370,33 @@ export default function SyncSettingsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {!showOtpInput ? (
-                <>
-                  <input
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="输入邮箱地址"
-                    className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
-                  />
-                  <button
-                    onClick={handleSendOtp}
-                    disabled={isLoading || !config.supabaseUrl || !config.supabaseAnonKey}
-                    className="w-full bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 disabled:text-stone-500 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
-                  >
-                    {isLoading ? "发送中..." : "发送验证码"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="输入邮箱验证码"
-                    className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
-                  />
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleVerifyOtp}
-                      disabled={isLoading}
-                      className="flex-1 bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
-                    >
-                      {isLoading ? "验证中..." : "验证登录"}
-                    </button>
-                    <button
-                      onClick={() => setShowOtpInput(false)}
-                      className="px-4 py-3 border border-stone-700/50 text-stone-400 rounded-xl text-sm hover:bg-stone-800/50 transition-colors"
-                    >
-                      返回
-                    </button>
-                  </div>
-                </>
-              )}
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="输入邮箱地址"
+                className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
+              />
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="输入密码"
+                className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
+              />
+              <button
+                onClick={handleLogin}
+                disabled={isLoading || !config.appId || !config.appKey}
+                className="w-full bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 disabled:text-stone-500 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
+              >
+                {isLoading ? "处理中..." : (isSignup ? "注册账号" : "登录")}
+              </button>
+              <button
+                onClick={() => setIsSignup(!isSignup)}
+                className="w-full text-xs text-stone-500 hover:text-stone-400"
+              >
+                {isSignup ? "已有账号？点击登录" : "没有账号？点击注册"}
+              </button>
             </div>
           )}
         </div>
@@ -504,7 +469,7 @@ export default function SyncSettingsPage() {
             </li>
             <li className="flex items-start gap-2">
               <CloudIcon />
-              <span>云端仅用于你的个人同步与备份</span>
+              <span>使用 LeanCloud 国内云服务，无需 VPN</span>
             </li>
             <li className="flex items-start gap-2">
               <RefreshIcon />
@@ -512,7 +477,7 @@ export default function SyncSettingsPage() {
             </li>
             <li className="flex items-start gap-2">
               <SmartphoneIcon />
-              <span>在手机和电脑间同步，请使用同一个同步账号登录</span>
+              <span>在手机和电脑间同步，请使用同一个账号登录</span>
             </li>
           </ul>
         </div>

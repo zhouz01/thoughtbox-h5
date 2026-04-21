@@ -6,6 +6,36 @@ export type ProviderType = "openai_compatible" | "custom";
 export type TestStatus = "success" | "failed" | "untested";
 export type FeedbackStatus = "未反馈" | "准确" | "一般" | "不合适";
 
+// LeanCloud 相关类型
+export interface LCUser {
+  id: string;
+  email: string;
+}
+
+export interface LCConfig {
+  appId: string;
+  appKey: string;
+  serverURL?: string;
+}
+
+export interface LCMeta {
+  deviceId: string;
+  deviceName: string;
+  lastSyncAt?: string;
+  lastSyncAction?: "push" | "pull" | "merge";
+  lastSyncStatus?: "success" | "failed";
+  lastSyncError?: string;
+}
+
+export interface LCLogEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  status: "success" | "failed";
+  details?: string;
+  error?: string;
+}
+
 export interface AIConfig {
   enabled: boolean;
   apiBaseUrl: string;
