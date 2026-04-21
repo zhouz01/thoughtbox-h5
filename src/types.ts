@@ -82,6 +82,16 @@ export interface ThoughtRecord {
   preferenceApplied?: boolean;
   // V1.7 软删除标记（用于同步）
   deletedAt?: string;
+  // V1.9 建议采纳追踪
+  adoptedSuggestions?: AdoptedSuggestion[];
+}
+
+/** 已采纳的建议 */
+export interface AdoptedSuggestion {
+  content: string;        // 建议原文
+  as: "todo" | "brief";   // 采纳为待办还是推进卡
+  targetId: string;       // 目标记录/推进卡 ID
+  createdAt: string;
 }
 
 // ============================================================
