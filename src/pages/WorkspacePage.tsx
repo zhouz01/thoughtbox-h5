@@ -10,16 +10,17 @@ import type {
 } from "../types";
 import {
   saveRecords,
-  saveSyntheses,
-  saveBriefs,
   loadVisibleRecords,
 } from "../storage";
+import { saveSyntheses } from "../synthesisStorage";
+import { saveBriefs } from "../briefStorage";
 import {
   getSyncMeta,
   getSyncConfig,
   getSyncSession,
 } from "../syncConfig";
-import { organizeRecord, generateSynthesisFromRecords } from "../aiService";
+import { organizeRecord } from "../ai";
+import { generateSynthesisFromRecords } from "../aiService";
 import { getExistingTopics, getRecentTopTopics } from "../aiConfig";
 
 const STORAGE_KEY = "thoughtbox_workspace_state";
