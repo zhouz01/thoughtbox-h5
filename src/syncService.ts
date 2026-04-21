@@ -648,7 +648,7 @@ export async function bidirectionalSync(): Promise<SyncOperationResult> {
     });
 
     const localCount = localSnapshot.records.filter(r => !r.deletedAt).length;
-    const cloudCount = cloudSnapshot.records.filter(r => !r.deletedAt).length;
+    const cloudCount = (data?.payload_json as AppSnapshot)?.records?.filter(r => !r.deletedAt).length || 0;
     const mergedCount = result.mergedSnapshot.records.filter(r => !r.deletedAt).length;
 
     addSyncLogEntry({
