@@ -236,8 +236,17 @@ export default function SyncSettingsPage() {
     setMessage({ type: result.success ? "success" : "error", text: result.error || result.message });
     if (result.success) {
       reloadFromStorage();
+      setMessage({
+        type: "success",
+        text: result.details || "同步成功",
+      });
+    } else {
+      setMessage({
+        type: "error",
+        text: result.error || result.message || "同步失败",
+      });
     }
-    setTimeout(() => setMessage(null), 5000);
+    setTimeout(() => setMessage(null), 8000);
   };
 
   const handleCreateBackup = () => {

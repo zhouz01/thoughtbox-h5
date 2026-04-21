@@ -150,7 +150,7 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
   // 合并 Records
   const recordMap = new Map<string, ThoughtRecord>();
   local.records.forEach(r => recordMap.set(r.id, r));
-  
+
   remote.records.forEach(remoteRecord => {
     const localRecord = recordMap.get(remoteRecord.id);
     if (!localRecord) {
@@ -160,17 +160,21 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
         stats.recordsAdded++;
       }
     } else {
-      // 两端都有，按 updatedAt 比较
+      // 两端都有
       const localTime = new Date(localRecord.updatedAt).getTime();
       const remoteTime = new Date(remoteRecord.updatedAt).getTime();
-      
-      if (remoteTime > localTime) {
-        recordMap.set(remoteRecord.id, remoteRecord);
-        if (remoteRecord.deletedAt && !localRecord.deletedAt) {
-          stats.recordsDeleted++;
-        } else {
-          stats.recordsUpdated++;
+
+      // 删除操作优先：任一方删除，保留删除状态
+      if (remoteRecord.deletedAt || localRecord.deletedAt) {
+        // 优先使用 remote 的删除版本（时间更新的）
+        if (remoteRecord.deletedAt && (!localRecord.deletedAt || remoteTime >= localTime)) {
+          recordMap.set(remoteRecord.id, remoteRecord);
+          if (!localRecord.deletedAt) stats.recordsDeleted++;
         }
+        // 否则保留 local 的删除版本
+      } else if (remoteTime > localTime) {
+        recordMap.set(remoteRecord.id, remoteRecord);
+        stats.recordsUpdated++;
       }
     }
   });
@@ -178,7 +182,7 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
   // 合并 Syntheses
   const synthesisMap = new Map<string, Synthesis>();
   local.syntheses.forEach(s => synthesisMap.set(s.id, s));
-  
+
   remote.syntheses.forEach(remoteSynthesis => {
     const localSynthesis = synthesisMap.get(remoteSynthesis.id);
     if (!localSynthesis) {
@@ -189,14 +193,15 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
     } else {
       const localTime = new Date(localSynthesis.updatedAt).getTime();
       const remoteTime = new Date(remoteSynthesis.updatedAt).getTime();
-      
-      if (remoteTime > localTime) {
-        synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
-        if (remoteSynthesis.deletedAt && !localSynthesis.deletedAt) {
-          stats.synthesesDeleted++;
-        } else {
-          stats.synthesesUpdated++;
+
+      if (remoteSynthesis.deletedAt || localSynthesis.deletedAt) {
+        if (remoteSynthesis.deletedAt && (!localSynthesis.deletedAt || remoteTime >= localTime)) {
+          synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
+          if (!localSynthesis.deletedAt) stats.synthesesDeleted++;
         }
+      } else if (remoteTime > localTime) {
+        synthesisMap.set(remoteSynthesis.id, remoteSynthesis);
+        stats.synthesesUpdated++;
       }
     }
   });
@@ -204,7 +209,7 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
   // 合并 Briefs
   const briefMap = new Map<string, ProjectBrief>();
   local.briefs.forEach(b => briefMap.set(b.id, b));
-  
+
   remote.briefs.forEach(remoteBrief => {
     const localBrief = briefMap.get(remoteBrief.id);
     if (!localBrief) {
@@ -215,14 +220,15 @@ export function mergeSnapshots(local: AppSnapshot, remote: AppSnapshot): MergeRe
     } else {
       const localTime = new Date(localBrief.updatedAt).getTime();
       const remoteTime = new Date(remoteBrief.updatedAt).getTime();
-      
-      if (remoteTime > localTime) {
-        briefMap.set(remoteBrief.id, remoteBrief);
-        if (remoteBrief.deletedAt && !localBrief.deletedAt) {
-          stats.briefsDeleted++;
-        } else {
-          stats.briefsUpdated++;
+
+      if (remoteBrief.deletedAt || localBrief.deletedAt) {
+        if (remoteBrief.deletedAt && (!localBrief.deletedAt || remoteTime >= localTime)) {
+          briefMap.set(remoteBrief.id, remoteBrief);
+          if (!localBrief.deletedAt) stats.briefsDeleted++;
         }
+      } else if (remoteTime > localTime) {
+        briefMap.set(remoteBrief.id, remoteBrief);
+        stats.briefsUpdated++;
       }
     }
   });
@@ -641,11 +647,15 @@ export async function bidirectionalSync(): Promise<SyncOperationResult> {
       lastSyncDetails: result.stats,
     });
 
+    const localCount = localSnapshot.records.filter(r => !r.deletedAt).length;
+    const cloudCount = cloudSnapshot.records.filter(r => !r.deletedAt).length;
+    const mergedCount = result.mergedSnapshot.records.filter(r => !r.deletedAt).length;
+
     addSyncLogEntry({
       timestamp: new Date().toISOString(),
       action: "merge",
       status: "success",
-      details: `双向同步完成：记录 +${result.stats.recordsAdded}/~${result.stats.recordsUpdated}/-${result.stats.recordsDeleted}, 汇总 +${result.stats.synthesesAdded}/~${result.stats.synthesesUpdated}/-${result.stats.synthesesDeleted}, 推进卡 +${result.stats.briefsAdded}/~${result.stats.briefsUpdated}/-${result.stats.briefsDeleted}`,
+      details: `本地${localCount}条 → 云端${cloudCount}条 → 合并后${mergedCount}条 | 新增${result.stats.recordsAdded} 更新${result.stats.recordsUpdated} 删除${result.stats.recordsDeleted}`,
     });
 
     return {
@@ -653,6 +663,7 @@ export async function bidirectionalSync(): Promise<SyncOperationResult> {
       action: "merge",
       message: "双向同步成功",
       stats: result.stats,
+      details: `本地${localCount}条 → 云端${cloudCount}条 → 合并后${mergedCount}条`,
     };
   } catch (error) {
     const formatted = formatSyncError(error);
