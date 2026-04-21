@@ -28,6 +28,7 @@ export default function InboxPage() {
   const [synthesizing, setSynthesizing] = useState(false);
   const [showTopicInput, setShowTopicInput] = useState(false);
   const [topicInput, setTopicInput] = useState("");
+  const [mobileWorkspaceTip, setMobileWorkspaceTip] = useState(false);
 
   const hasAnyRecords = records.length > 0;
   const isFiltering = searchQuery || filterType !== "全部";
@@ -206,7 +207,14 @@ export default function InboxPage() {
             <div className="my-1.5 border-t border-stone-100" />
 
             {/* 桌面扩展 */}
-            <MenuButton onClick={() => { setShowMenu(false); navigate("/workspace"); }}>
+            <MenuButton onClick={() => {
+              setShowMenu(false);
+              if (window.innerWidth < 1024) {
+                setMobileWorkspaceTip(true);
+              } else {
+                navigate("/workspace");
+              }
+            }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                 <line x1="8" y1="21" x2="16" y2="21" />
@@ -417,6 +425,31 @@ export default function InboxPage() {
               选中至少 2 条记录后可生成汇总
             </p>
           )}
+        </div>
+      )}
+
+      {/* ====== 移动端工作台提示弹层 ====== */}
+      {mobileWorkspaceTip && (
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-end justify-center" onClick={() => setMobileWorkspaceTip(false)}>
+          <div className="bg-white rounded-t-2xl w-full max-w-lg px-6 pt-6 pb-8 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </div>
+            <h3 className="text-center text-base font-semibold text-stone-800 mb-2">工作台更适合在电脑上使用</h3>
+            <p className="text-center text-sm text-stone-400 leading-relaxed mb-6">
+              这里更适合做筛选、批量整理、汇总和推进<br />你可以在手机上继续记录和查看内容
+            </p>
+            <button
+              onClick={() => setMobileWorkspaceTip(false)}
+              className="w-full py-3 text-sm font-medium bg-stone-900 text-white rounded-xl active:bg-stone-800 mb-2"
+            >
+              我知道了
+            </button>
+          </div>
         </div>
       )}
     </div>

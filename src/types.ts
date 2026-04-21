@@ -90,7 +90,7 @@ export interface ThoughtRecord {
 export interface AdoptedSuggestion {
   content: string;        // 建议原文
   as: "todo" | "brief";   // 采纳为待办还是推进卡
-  targetId: string;       // 目标记录/推进卡 ID
+  targetId?: string;      // 目标推进卡 ID（可能尚未生成）
   createdAt: string;
 }
 

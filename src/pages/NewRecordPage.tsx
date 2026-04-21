@@ -123,17 +123,7 @@ export default function NewRecordPage() {
           取消
         </button>
         <h1 className="text-[13px] font-semibold text-stone-900">新建记录</h1>
-        <button
-          onClick={handleSave}
-          disabled={!canSave}
-          className={`text-[13px] font-semibold min-w-[48px] text-right py-1 transition-colors ${
-            canSave
-              ? "text-stone-900 active:text-stone-600"
-              : "text-stone-300 cursor-default"
-          }`}
-        >
-          保存
-        </button>
+        <div className="min-w-[48px]" />
       </div>
 
       {/* ====== 2. 输入主体区 ====== */}

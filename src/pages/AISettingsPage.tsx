@@ -481,8 +481,8 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
   return (
     <div className="flex items-center justify-between">
       <span className="text-[13px] text-stone-700">{label}</span>
-      <button onClick={() => onChange(!value)} className={`w-10 h-[22px] rounded-full transition-colors duration-200 relative ${value ? "bg-indigo-500" : "bg-stone-300"}`}>
-        <span className={`absolute top-[2px] w-[18px] h-[18px] bg-white rounded-full shadow-sm transition-transform duration-200 ${value ? "translate-x-[20px]" : "translate-x-[2px]"}`} />
+      <button onClick={() => onChange(!value)} className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${value ? "bg-indigo-500" : "bg-stone-300"}`}>
+        <span className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow-sm transition-all duration-200 ${value ? "left-[22px]" : "left-[3px]"}`} />
       </button>
     </div>
   );

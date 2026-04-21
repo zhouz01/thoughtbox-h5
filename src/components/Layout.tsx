@@ -51,23 +51,7 @@ export default function Layout() {
         </div>
       </nav>
 
-      {/* FAB */}
-      {!hideFab && (
-        <button
-          onClick={() => navigate("/new")}
-          className="fixed z-50 w-[52px] h-[52px] rounded-2xl bg-stone-900 text-white shadow-[0_4px_14px_rgba(28,25,23,0.35)] flex items-center justify-center active:scale-95 active:shadow-[0_2px_8px_rgba(28,25,23,0.3)] transition-all duration-150"
-          style={{
-            bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
-            right: "20px",
-          }}
-          aria-label="新建记录"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
-      )}
+      {/* FAB 已移除，新建记录入口在收件箱卡片中 */}
     </div>
   );
 }

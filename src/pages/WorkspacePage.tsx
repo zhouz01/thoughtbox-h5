@@ -153,7 +153,7 @@ export default function WorkspacePage() {
   }, []);
 
   // 移动端提示页
-  if (isMobile && !mobileForceOpen) {
+  if (isMobile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 px-6">
         <div className="w-16 h-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-5">
@@ -165,22 +165,13 @@ export default function WorkspacePage() {
         </div>
         <h2 className="text-lg font-semibold text-stone-800 mb-2">工作台更适合在电脑上使用</h2>
         <p className="text-sm text-stone-400 text-center leading-relaxed mb-6 max-w-xs">
-          这里更适合做筛选、批量整理、汇总和推进<br />你仍然可以在手机上继续记录和查看内容
+          这里更适合做筛选、批量整理、汇总和推进<br />你可以在手机上继续记录和查看内容
         </p>
         <button
-          onClick={() => navigate(-1)}
-          className="w-full max-w-xs py-3 text-sm font-medium bg-stone-900 text-white rounded-xl active:bg-stone-800 mb-3"
+          onClick={() => navigate("/")}
+          className="w-full max-w-xs py-3 text-sm font-medium bg-stone-900 text-white rounded-xl active:bg-stone-800"
         >
           返回收件箱
-        </button>
-        <button
-          onClick={() => {
-            setMobileForceOpen(true);
-            try { localStorage.setItem(MOBILE_FORCE_KEY, "true"); } catch {}
-          }}
-          className="text-xs text-stone-400 hover:text-stone-600 transition-colors"
-        >
-          仍然打开
         </button>
       </div>
     );

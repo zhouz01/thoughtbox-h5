@@ -250,49 +250,55 @@ export default function RecordDetailPage() {
   };
 
   // ====== 加入推进卡 ======
+  // 如果已有该记录的 brief，则添加行动项；否则只标记建议，稍后由用户手动生成 brief
   const handleAddToBrief = async (suggestionText: string) => {
-    setGeneratingBrief(true);
-    try {
-      const existingBrief = briefs.find((b) => b.sourceType === "record" && b.sourceRecordIds.includes(record.id));
-      let brief = existingBrief || null;
+    const existingBrief = briefs.find((b) => b.sourceType === "record" && b.sourceRecordIds.includes(record.id));
 
-      if (!brief) {
-        brief = await generateBriefFromRecordData(record.id);
-      }
+    if (existingBrief) {
+      // 已有 brief：直接添加行动项
+      const newAction: BriefActionItem = {
+        id: generateId(),
+        content: suggestionText,
+        done: false,
+        source: "manual",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      updateBrief({
+        ...existingBrief,
+        nextActions: [...existingBrief.nextActions, newAction],
+        updatedAt: new Date().toISOString(),
+      });
 
-      if (brief) {
-        const newAction: BriefActionItem = {
-          id: generateId(),
-          content: suggestionText,
-          done: false,
-          source: "manual",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        updateBrief({
-          ...brief,
-          nextActions: [...brief.nextActions, newAction],
+      // 标记建议为已加入推进卡
+      const current = getRecord(record.id);
+      if (current) {
+        updateRecord({
+          ...current,
+          adoptedSuggestions: [...(current.adoptedSuggestions || []), {
+            content: suggestionText,
+            as: "brief",
+            targetId: existingBrief.id,
+            createdAt: new Date().toISOString(),
+          }],
           updatedAt: new Date().toISOString(),
         });
-
-        const current = getRecord(record.id);
-        if (current) {
-          updateRecord({
-            ...current,
-            adoptedSuggestions: [...(current.adoptedSuggestions || []), {
-              content: suggestionText,
-              as: "brief",
-              targetId: brief.id,
-              createdAt: new Date().toISOString(),
-            }],
-            updatedAt: new Date().toISOString(),
-          });
-        }
-
-        navigate(`/brief/${brief.id}`);
       }
-    } finally {
-      setGeneratingBrief(false);
+    } else {
+      // 没有 brief：仅标记建议为"待加入推进卡"，不自动生成
+      const current = getRecord(record.id);
+      if (current) {
+        updateRecord({
+          ...current,
+          adoptedSuggestions: [...(current.adoptedSuggestions || []), {
+            content: suggestionText,
+            as: "brief",
+            targetId: undefined,
+            createdAt: new Date().toISOString(),
+          }],
+          updatedAt: new Date().toISOString(),
+        });
+      }
     }
   };
 
@@ -314,6 +320,12 @@ export default function RecordDetailPage() {
 
   // ====== 底部生成 Brief ======
   const handleGenerateBrief = async () => {
+    // 如果已有 brief，直接跳转
+    const existingBrief = briefs.find((b) => b.sourceType === "record" && b.sourceRecordIds.includes(record.id));
+    if (existingBrief) {
+      navigate(`/brief/${existingBrief.id}`);
+      return;
+    }
     setGeneratingBrief(true);
     try {
       const brief = await generateBriefFromRecordData(record.id);
@@ -877,7 +889,11 @@ export default function RecordDetailPage() {
                           {adopted && (
                             <div className="mt-1.5 pl-[26px]">
                               <span className="text-[10px] text-stone-300">
-                                {record.adoptedSuggestions?.find((a) => a.content === s)?.as === "todo" ? "已转为待办" : "已加入推进卡"}
+                                {record.adoptedSuggestions?.find((a) => a.content === s)?.as === "todo"
+                                  ? "已转为待办"
+                                  : record.adoptedSuggestions?.find((a) => a.content === s)?.targetId
+                                    ? "已加入推进卡"
+                                    : "待生成推进卡"}
                               </span>
                             </div>
                           )}
@@ -908,7 +924,7 @@ export default function RecordDetailPage() {
                   <span className={`shrink-0 ml-2 px-2 py-[2px] rounded-md text-[10px] font-medium ${
                     adopted.as === "todo" ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
                   }`}>
-                    {adopted.as === "todo" ? "已转为待办" : "已加入推进卡"}
+                    {adopted.as === "todo" ? "已转为待办" : adopted.targetId ? "已加入推进卡" : "待生成推进卡"}
                   </span>
                 </div>
               ))}
