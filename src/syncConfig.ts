@@ -71,7 +71,11 @@ export function getSyncConfig(): SyncConfig {
 }
 
 export function saveSyncConfig(config: SyncConfig): void {
-  localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+  try {
+    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.error("Failed to save sync config:", e);
+  }
 }
 
 export function getDefaultSyncConfig(): SyncConfig {
