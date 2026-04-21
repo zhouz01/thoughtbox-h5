@@ -272,7 +272,6 @@ export const BRIEF_STATUS_COLORS: Record<BriefStatus, string> = {
 // V1.7 云同步数据对象
 // ============================================================
 
-export type SyncStatus = "未配置" | "未登录" | "已连接" | "同步中" | "同步成功" | "同步失败";
 export type SyncAction = "push" | "pull" | "merge";
 
 export interface AppSnapshot {
