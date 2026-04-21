@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import {
   getSyncConfig,
+  saveSyncConfig,
   getSyncSession,
   saveSyncSession,
   clearSyncSession,
@@ -321,6 +322,39 @@ export interface SyncOperationResult {
   error?: string;
 }
 
+function formatSyncError(error: unknown): { message: string; hint?: string } {
+  if (error instanceof Error) {
+    const msg = error.message;
+    // Supabase 常见错误码
+    if (msg.includes("42P01") || msg.includes("relation") || msg.includes("does not exist")) {
+      return {
+        message: "云端数据表不存在",
+        hint: "请在 Supabase Dashboard → SQL Editor 中执行 schema.sql 建表脚本",
+      };
+    }
+    if (msg.includes("new row violates row-level security policy") || msg.includes("violates row-level")) {
+      return {
+        message: "权限被拒绝（RLS）",
+        hint: "请检查 Supabase 中 RLS 策略是否已正确配置",
+      };
+    }
+    if (msg.includes("JWT") || msg.includes("token") || msg.includes("Unauthorized")) {
+      return {
+        message: "登录已过期",
+        hint: "请退出后重新登录",
+      };
+    }
+    if (msg.includes("timeout") || msg.includes("ETIMEDOUT") || msg.includes("fetch")) {
+      return {
+        message: "网络连接超时",
+        hint: "请检查网络连接，国内访问 Supabase 可能需要 VPN",
+      };
+    }
+    return { message: msg };
+  }
+  return { message: "未知错误" };
+}
+
 export async function pushToCloud(snapshot?: AppSnapshot): Promise<SyncOperationResult> {
   const client = getSupabaseClient();
   if (!client) {
@@ -334,7 +368,7 @@ export async function pushToCloud(snapshot?: AppSnapshot): Promise<SyncOperation
 
   try {
     const data = snapshot || await createLocalSnapshot();
-    
+
     const cloudState: Omit<CloudSyncState, "user_id"> = {
       payload_json: data,
       schema_version: CURRENT_SCHEMA_VERSION,
@@ -400,27 +434,27 @@ export async function pushToCloud(snapshot?: AppSnapshot): Promise<SyncOperation
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "上传失败";
-    
+    const formatted = formatSyncError(error);
+
     updateSyncMeta({
       lastSyncAt: new Date().toISOString(),
       lastSyncAction: "push",
       lastSyncStatus: "failed",
-      lastSyncError: errorMessage,
+      lastSyncError: formatted.message,
     });
 
     addSyncLogEntry({
       timestamp: new Date().toISOString(),
       action: "push",
       status: "failed",
-      error: errorMessage,
+      error: formatted.message,
     });
 
     return {
       success: false,
       action: "push",
-      message: "上传失败",
-      error: errorMessage,
+      message: formatted.message,
+      error: formatted.hint || formatted.message,
     };
   }
 }
@@ -501,27 +535,27 @@ export async function pullFromCloud(): Promise<SyncOperationResult> {
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "拉取失败";
-    
+    const formatted = formatSyncError(error);
+
     updateSyncMeta({
       lastSyncAt: new Date().toISOString(),
       lastSyncAction: "pull",
       lastSyncStatus: "failed",
-      lastSyncError: errorMessage,
+      lastSyncError: formatted.message,
     });
 
     addSyncLogEntry({
       timestamp: new Date().toISOString(),
       action: "pull",
       status: "failed",
-      error: errorMessage,
+      error: formatted.message,
     });
 
     return {
       success: false,
       action: "pull",
-      message: "拉取失败",
-      error: errorMessage,
+      message: formatted.message,
+      error: formatted.hint || formatted.message,
     };
   }
 }
@@ -621,27 +655,27 @@ export async function bidirectionalSync(): Promise<SyncOperationResult> {
       stats: result.stats,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "同步失败";
-    
+    const formatted = formatSyncError(error);
+
     updateSyncMeta({
       lastSyncAt: new Date().toISOString(),
       lastSyncAction: "merge",
       lastSyncStatus: "failed",
-      lastSyncError: errorMessage,
+      lastSyncError: formatted.message,
     });
 
     addSyncLogEntry({
       timestamp: new Date().toISOString(),
       action: "merge",
       status: "failed",
-      error: errorMessage,
+      error: formatted.message,
     });
 
     return {
       success: false,
       action: "merge",
-      message: "同步失败",
-      error: errorMessage,
+      message: formatted.message,
+      error: formatted.hint || formatted.message,
     };
   }
 }
