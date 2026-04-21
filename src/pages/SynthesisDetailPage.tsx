@@ -3,6 +3,7 @@ import { useApp } from "../context";
 import { useNavigate, useParams } from "react-router-dom";
 import { TYPE_COLORS, PROMOTE_DOT } from "../types";
 import type { Synthesis } from "../types";
+import { WorkspaceLink } from "../components/WorkspaceLink";
 
 export default function SynthesisDetailPage() {
   const { getSynthesis, records, generateSelectionSynthesis, generateWeeklyReview, deleteSynthesisById, generateBriefFromSynthesisData } = useApp();
@@ -101,6 +102,7 @@ export default function SynthesisDetailPage() {
             <span className="text-[11px] text-stone-400">{formatShortTime(synthesis.createdAt)}</span>
           </div>
         </div>
+        <WorkspaceLink view="syntheses" synthesisId={synthesis.id} label="在工作台打开" />
       </div>
 
       {/* 一句话总结 */}

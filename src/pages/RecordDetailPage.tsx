@@ -11,6 +11,7 @@ import {
   FEEDBACK_REASONS,
 } from "../types";
 import type { RecordType, PromoteLevel, ThoughtRecord, FeedbackStatus, AdoptedSuggestion, BriefActionItem } from "../types";
+import { WorkspaceLink } from "../components/WorkspaceLink";
 
 type ConfirmAction = "archive" | "delete" | "restore" | null;
 
@@ -395,12 +396,15 @@ export default function RecordDetailPage() {
           返回
         </button>
         <h1 className="text-[13px] font-semibold text-stone-900">记录详情</h1>
-        <button
-          onClick={() => setShowMoreMenu(true)}
-          className="text-[13px] text-stone-400 active:text-stone-500 transition-colors min-w-[48px] text-right py-1"
-        >
-          更多
-        </button>
+        <div className="flex items-center gap-2">
+          <WorkspaceLink view="records" recordId={id} label="在工作台继续整理" />
+          <button
+            onClick={() => setShowMoreMenu(true)}
+            className="text-[13px] text-stone-400 active:text-stone-500 transition-colors min-w-[48px] text-right py-1"
+          >
+            更多
+          </button>
+        </div>
       </div>
 
       {/* ========== 滚动内容区 ========== */}

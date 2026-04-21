@@ -448,7 +448,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           r.rawText.toLowerCase().includes(q) ||
           r.aiTitle.toLowerCase().includes(q) ||
           r.tags.some((tag) => tag.toLowerCase().includes(q)) ||
-          r.topic.toLowerCase().includes(q)
+          r.topic.toLowerCase().includes(q) ||
+          (r.aiSubType && r.aiSubType.toLowerCase().includes(q))
         );
       }
       return true;

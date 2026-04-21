@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useApp } from "../context";
-import type { ThoughtRecord, RecordType } from "../types";
+import type { RecordType } from "../types";
 import { TYPE_COLORS, PROMOTE_DOT, RECORD_TYPES } from "../types";
 import { useNavigate } from "react-router-dom";
+import { WorkspaceLink } from "../components/WorkspaceLink";
 
 export default function InboxPage() {
   const {
@@ -11,20 +12,15 @@ export default function InboxPage() {
     setSearchQuery,
     filterType,
     setFilterType,
-    showArchived,
-    setShowArchived,
     records,
     importMockRecords,
-    exportRecords,
-    importRecordsMerge,
-    importRecordsOverwrite,
     generateSelectionSynthesis,
     batchSetTopic,
     batchArchive,
+    reOrganizeRecord,
   } = useApp();
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 多选模式
   const [selectMode, setSelectMode] = useState(false);
@@ -111,73 +107,44 @@ export default function InboxPage() {
     touchStartPos.current = null;
   };
 
-  // 导出
-  const handleExport = () => {
-    const json = exportRecords();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `thoughtbox_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setShowMenu(false);
-  };
+  // 按时间分组
+  const groupedRecords = useMemo(() => {
+    const groups: { label: string; records: ThoughtRecord[] }[] = [];
+    const today: ThoughtRecord[] = [];
+    const yesterday: ThoughtRecord[] = [];
+    const earlier: ThoughtRecord[] = [];
 
-  // 导入
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target?.result as string);
-        if (!Array.isArray(data)) {
-          alert("文件格式不正确");
-          return;
-        }
-        const valid = data.every(
-          (r: unknown) =>
-            typeof r === "object" && r !== null && "id" in r && "rawText" in r
-        );
-        if (!valid) {
-          alert("文件内容不是有效的 ThoughtBox 数据");
-          return;
-        }
-        const confirmed = window.confirm(
-          "选择导入方式：\n\n确定 = 合并导入（保留现有数据）\n取消 = 覆盖导入（替换所有数据）"
-        );
-        if (confirmed) {
-          importRecordsMerge(data as ThoughtRecord[]);
-        } else {
-          const overwrite = window.confirm(
-            "⚠️ 覆盖导入将替换所有现有数据，此操作不可撤销！\n\n确定要覆盖吗？"
-          );
-          if (overwrite) {
-            importRecordsOverwrite(data as ThoughtRecord[]);
-          }
-        }
-      } catch {
-        alert("文件解析失败，请检查文件格式");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-    setShowMenu(false);
-  };
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const yest = new Date(now.getTime() - 86400000);
+    const yestStr = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, "0")}-${String(yest.getDate()).padStart(2, "0")}`;
+
+    for (const r of filteredRecords) {
+      const d = r.createdAt.slice(0, 10);
+      if (d === todayStr) today.push(r);
+      else if (d === yestStr) yesterday.push(r);
+      else earlier.push(r);
+    }
+
+    if (today.length) groups.push({ label: "今天", records: today });
+    if (yesterday.length) groups.push({ label: "昨天", records: yesterday });
+    if (earlier.length) groups.push({ label: "更早", records: earlier });
+
+    return groups;
+  }, [filteredRecords]);
 
   return (
-    <div className="px-5 pt-8 pb-4">
-      {/* 标题区 */}
-      <div className="flex items-start justify-between mb-6">
+    <div className="px-5 pt-5 pb-4">
+      {/* ====== 1. 顶部标题区 ====== */}
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-[22px] font-bold text-stone-900 tracking-tight">
-            {selectMode ? "选择记录" : showArchived ? "已归档" : "收件箱"}
+          <h1 className="text-xl font-bold text-stone-900 tracking-tight">
+            {selectMode ? "选择记录" : "收件箱"}
           </h1>
-          <p className="text-[13px] text-stone-400 mt-0.5">
+          <p className="text-[12px] text-stone-400 mt-0.5">
             {selectMode
               ? `已选择 ${selectedIds.size} 条`
-              : showArchived ? "已归档的记录" : "记录想法，稍后整理"}
+              : "记录想法，稍后整理"}
           </p>
         </div>
         {selectMode ? (
@@ -189,14 +156,7 @@ export default function InboxPage() {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            {!showArchived && filteredRecords.length > 0 && (
-              <button
-                onClick={() => setSelectMode(true)}
-                className="px-3 py-1.5 text-[13px] font-medium text-stone-600 bg-white rounded-xl border border-stone-200/80 active:bg-stone-50"
-              >
-                选择
-              </button>
-            )}
+            <WorkspaceLink view="records" label="进入工作台" />
             <button
               onClick={() => setShowMenu(!showMenu)}
               className="w-9 h-9 rounded-xl bg-white border border-stone-200/80 flex items-center justify-center text-stone-500 active:bg-stone-50 transition-colors"
@@ -211,71 +171,79 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* 更多菜单 */}
+      {/* ====== 更多菜单（精简 4 项） ====== */}
       {!selectMode && showMenu && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
-          <div className="absolute right-5 top-[88px] z-40 w-48 bg-white rounded-2xl shadow-lg border border-stone-200/60 py-1.5 animate-fade-in overflow-hidden">
-            <MenuButton onClick={handleExport}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              导出数据
-            </MenuButton>
-            <MenuButton onClick={() => fileInputRef.current?.click()}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              导入数据
-            </MenuButton>
-            {!hasAnyRecords && (
-              <MenuButton onClick={() => { importMockRecords(); setShowMenu(false); }}>
+          <div className="absolute right-5 top-[72px] z-40 w-52 bg-white rounded-2xl shadow-lg border border-stone-200/60 py-2 animate-fade-in overflow-hidden">
+            {/* 模式切换 */}
+            {filteredRecords.length > 0 && (
+              <MenuButton onClick={() => { setSelectMode(true); setShowMenu(false); }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
+                  <path d="M3 6h18M3 12h18M3 18h18" />
                 </svg>
-                导入示例数据
+                选择
               </MenuButton>
             )}
+            <MenuButton onClick={() => { navigate("/archived"); setShowMenu(false); }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              查看已归档
+            </MenuButton>
+
             <div className="my-1.5 border-t border-stone-100" />
-            <MenuButton onClick={() => { navigate("/settings/sync"); setShowMenu(false); }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
-                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
-              </svg>
-              数据同步
-            </MenuButton>
-            <MenuButton onClick={() => { navigate("/workspace"); setShowMenu(false); }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-              打开工作台
-            </MenuButton>
-            <MenuButton onClick={() => { navigate("/settings/ai"); setShowMenu(false); }}>
+
+            {/* 页面入口 */}
+            <MenuButton onClick={() => { navigate("/settings"); setShowMenu(false); }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
-              AI 设置
+              设置与数据
+            </MenuButton>
+
+            <div className="my-1.5 border-t border-stone-100" />
+
+            {/* 桌面扩展 */}
+            <MenuButton onClick={() => { setShowMenu(false); navigate("/workspace"); }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+              进入工作台
+              <span className="ml-auto text-[10px] text-stone-300 font-normal">桌面端</span>
             </MenuButton>
           </div>
         </>
       )}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        onChange={handleImportFile}
-        className="hidden"
-      />
 
-      {/* 搜索框 */}
+      {/* ====== 2. 快速记录入口 ====== */}
+      {!selectMode && (
+        <button
+          onClick={() => navigate("/new")}
+          className="w-full text-left bg-white rounded-2xl p-4 mb-4 border border-stone-200/50 active:bg-stone-50 transition-colors card-press"
+        >
+          <div className="flex items-center gap-3">
+            <span className="shrink-0 w-9 h-9 rounded-xl bg-stone-900 flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-medium text-stone-700">写下此刻的想法…</p>
+              <p className="text-[11px] text-stone-400 mt-0.5">标题、摘要、建议类型会自动生成</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-stone-300 shrink-0">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </div>
+        </button>
+      )}
+
+      {/* ====== 3. 搜索框 ====== */}
       {!selectMode && (
         <div className="relative mb-4">
           <svg
@@ -306,7 +274,7 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* 类型筛选 chips */}
+      {/* ====== 4. 主类型筛选区 ====== */}
       {!selectMode && (
         <div className="flex gap-1.5 overflow-x-auto pb-2 mb-5 -mx-5 px-5 no-scrollbar">
           <FilterChip active={filterType === "全部"} onClick={() => setFilterType("全部")}>
@@ -317,13 +285,10 @@ export default function InboxPage() {
               {t}
             </FilterChip>
           ))}
-          <FilterChip active={showArchived} onClick={() => setShowArchived(!showArchived)}>
-            已归档
-          </FilterChip>
         </div>
       )}
 
-      {/* 记录列表 / 空状态 */}
+      {/* ====== 5. 记录列表区 ====== */}
       {filteredRecords.length === 0 ? (
         <div className="text-center py-20">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-stone-50 border border-stone-200/60 flex items-center justify-center">
@@ -351,11 +316,6 @@ export default function InboxPage() {
                 </button>
               </div>
             </>
-          ) : showArchived ? (
-            <>
-              <p className="text-stone-500 text-sm font-medium mb-1">没有已归档记录</p>
-              <p className="text-stone-400 text-xs">归档的记录会在这里显示</p>
-            </>
           ) : isFiltering ? (
             <>
               <p className="text-stone-500 text-sm font-medium mb-1">没有匹配的记录</p>
@@ -364,34 +324,44 @@ export default function InboxPage() {
           ) : null}
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {filteredRecords.map((record, i) => (
-            <div
-              key={record.id}
-              className="animate-fade-in"
-              style={{ animationDelay: `${Math.min(i * 40, 200)}ms` }}
-            >
-              <RecordCard
-                record={record}
-                selectMode={selectMode}
-                selected={selectedIds.has(record.id)}
-                onClick={() => {
-                  if (selectMode) {
-                    toggleSelect(record.id);
-                  } else {
-                    navigate(`/record/${record.id}`);
-                  }
-                }}
-                onLongPressStart={(e) => handleTouchStart(record.id, e)}
-                onLongPressMove={handleTouchMove}
-                onLongPressEnd={handleTouchEnd}
-              />
+        <div className="flex flex-col gap-6">
+          {groupedRecords.map((group) => (
+            <div key={group.label}>
+              <h2 className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-2.5 px-0.5">
+                {group.label}
+              </h2>
+              <div className="flex flex-col gap-2.5">
+                {group.records.map((record, i) => (
+                  <div
+                    key={record.id}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${Math.min(i * 40, 200)}ms` }}
+                  >
+                    <RecordCard
+                      record={record}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(record.id)}
+                      onClick={() => {
+                        if (selectMode) {
+                          toggleSelect(record.id);
+                        } else {
+                          navigate(`/record/${record.id}`);
+                        }
+                      }}
+                      onLongPressStart={(e) => handleTouchStart(record.id, e)}
+                      onLongPressMove={handleTouchMove}
+                      onLongPressEnd={handleTouchEnd}
+                      onRetry={() => reOrganizeRecord(record.id)}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* 批量操作栏 */}
+      {/* ====== 6. 批量操作栏 ====== */}
       {selectMode && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-stone-200/80 px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] animate-fade-in">
           {showTopicInput && (
@@ -488,6 +458,7 @@ function RecordCard({
   onLongPressStart,
   onLongPressMove,
   onLongPressEnd,
+  onRetry,
 }: {
   record: ThoughtRecord;
   selectMode: boolean;
@@ -496,8 +467,14 @@ function RecordCard({
   onLongPressStart?: (e: React.TouchEvent) => void;
   onLongPressMove?: (e: React.TouchEvent) => void;
   onLongPressEnd?: () => void;
+  onRetry?: (id: string) => void;
 }) {
   const timeStr = formatRelativeTime(record.createdAt);
+
+  // 卡片状态判断
+  const isPending = record.aiStatus === "pending";
+  const isFailed = record.aiStatus === "done" && record.organizeError;
+  const isOrganized = record.aiStatus === "done" && !record.organizeError;
 
   return (
     <button
@@ -513,6 +490,7 @@ function RecordCard({
           : "border-stone-200/50 hover:border-stone-300/60"
       } ${record.archived ? "opacity-60" : ""}`}
     >
+      {/* 多选勾选 */}
       {selectMode && (
         <div className="flex items-center gap-2.5 mb-2">
           <span className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
@@ -531,13 +509,48 @@ function RecordCard({
           </span>
         </div>
       )}
-      {record.aiStatus === "pending" ? (
-        <div className="flex items-center gap-2.5 text-stone-400 text-[13px] py-1">
+
+      {/* ====== 整理中状态 ====== */}
+      {isPending && (
+        <div className="flex items-center gap-2.5 py-1">
           <span className="inline-block w-4 h-4 border-[1.5px] border-stone-200 border-t-stone-400 rounded-full animate-spin" />
-          <span>AI 整理中...</span>
+          <span className="text-[13px] text-stone-500 font-medium">整理中…</span>
           <span className="ml-auto text-[11px] text-stone-300 font-medium">{timeStr}</span>
         </div>
-      ) : (
+      )}
+
+      {/* ====== 整理失败状态 ====== */}
+      {isFailed && (
+        <div>
+          <div className="flex items-center gap-2.5 mb-2">
+            <span className="shrink-0 w-4 h-4 rounded-full bg-rose-100 flex items-center justify-center">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </span>
+            <span className="text-[13px] text-stone-700 font-medium">整理失败</span>
+            <span className="ml-auto text-[11px] text-stone-300 font-medium">{timeStr}</span>
+          </div>
+          <p className="text-[12px] text-stone-500 line-clamp-2 mb-2 leading-[1.6]">
+            {record.rawText}
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-stone-400">已保留原始记录</span>
+            {onRetry && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRetry(record.id); }}
+                className="text-[11px] text-stone-600 font-medium underline underline-offset-2 active:text-stone-800"
+              >
+                重试整理
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ====== 正常已整理状态 ====== */}
+      {isOrganized && (
         <>
           {/* 顶部：推进等级点 + 标题 + 类型 */}
           <div className="flex items-start gap-2.5 mb-2">
@@ -558,7 +571,7 @@ function RecordCard({
           </div>
 
           {/* rawText 前两行 */}
-          <p className="text-[12px] text-stone-500 line-clamp-2 mb-3 leading-[1.6] pl-0">
+          <p className="text-[12px] text-stone-500 line-clamp-2 mb-3 leading-[1.6]">
             {record.rawText}
           </p>
 

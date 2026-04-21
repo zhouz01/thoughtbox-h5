@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../context";
 import { BRIEF_STATUSES, BRIEF_STATUS_COLORS } from "../types";
 import type { BriefStatus, ProjectBrief } from "../types";
+import { WorkspaceLink } from "../components/WorkspaceLink";
 
 interface EditFormState {
   title: string;
@@ -224,12 +225,15 @@ export default function BriefDetailPage() {
           </div>
         </div>
         {!isEditing && (
-          <button
-            onClick={handleStartEdit}
-            className="px-3 py-1.5 text-[12px] font-medium text-stone-600 bg-white rounded-xl border border-stone-200/80 active:bg-stone-50"
-          >
-            编辑
-          </button>
+          <div className="flex items-center gap-2">
+            <WorkspaceLink view="briefs" briefId={brief.id} label="在工作台打开" />
+            <button
+              onClick={handleStartEdit}
+              className="px-3 py-1.5 text-[12px] font-medium text-stone-600 bg-white rounded-xl border border-stone-200/80 active:bg-stone-50"
+            >
+              编辑
+            </button>
+          </div>
         )}
       </div>
 

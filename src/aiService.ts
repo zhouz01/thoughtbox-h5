@@ -1873,3 +1873,306 @@ export async function generateBriefFromSynthesis(
     topic, synthesis.id, synthesis.sourceRecordIds,
   );
 }
+
+// ============================================================
+// 十四、校准诊断版调用（供 AICalibrationPage 使用）
+// ============================================================
+
+export type ParseStatus = "直接解析成功" | "从代码块中提取" | "解析失败后重试成功" | "最终回退本地整理";
+
+export interface CalibrationDiagnostic {
+  /** 原始模型返回文本 */
+  rawModelOutput: string;
+  /** JSON 解析状态 */
+  parseStatus: ParseStatus;
+  /** 解析后的原始 JSON（修正前） */
+  parsedRaw: Partial<AIOrganizeResult> | null;
+  /** 字段修正记录 */
+  corrections: string[];
+  /** 命中的黑名单 */
+  blacklistHits: string[];
+  /** 偏好命中情况 */
+  preferenceHits: string[];
+  /** 是否触发了重试 */
+  retried: boolean;
+  /** 是否触发了备用配置 */
+  usedBackup: boolean;
+  /** 是否触发了本地回退 */
+  usedFallback: boolean;
+  /** 失败原因 */
+  failureReason?: string;
+  /** 实际使用的配置名 */
+  profileName?: string;
+  /** 实际使用的模型 */
+  modelName?: string;
+  /** 用时（ms） */
+  durationMs: number;
+  /** 最终结果 */
+  result: AIOrganizeResult | null;
+}
+
+/** 校准版调用：带完整诊断信息 */
+export async function organizeForCalibration(
+  rawText: string,
+  profile: AIProfile,
+  topicContext?: TopicContext,
+  preferenceContext?: PreferenceContext,
+  ignorePreferences: boolean = false
+): Promise<CalibrationDiagnostic> {
+  const startTime = Date.now();
+  const diag: CalibrationDiagnostic = {
+    rawModelOutput: "",
+    parseStatus: "直接解析成功",
+    parsedRaw: null,
+    corrections: [],
+    blacklistHits: [],
+    preferenceHits: [],
+    retried: false,
+    usedBackup: false,
+    usedFallback: false,
+    profileName: profile.name,
+    modelName: profile.model,
+    durationMs: 0,
+    result: null,
+  };
+
+  const prefs = ignorePreferences ? undefined : (preferenceContext ? undefined : loadPreferences());
+  const bannedTags = ignorePreferences ? [] : (preferenceContext?.bannedGenericTags ?? prefs?.bannedGenericTags ?? []);
+  const topicAliases = ignorePreferences ? [] : (preferenceContext?.preferredTopicAliases ?? prefs?.preferredTopicAliases.map((a) => ({ from: a.from, to: a.to })) ?? []);
+  const titleBlacklist = ignorePreferences ? [] : (prefs?.titleBlacklistPatterns ?? []);
+  const suggestionBlacklist = ignorePreferences ? [] : (prefs?.suggestionBlacklistPatterns ?? []);
+  const tagsByTopic = ignorePreferences ? [] : (preferenceContext?.preferredTagsByTopic ?? prefs?.preferredTagsByTopic.map((t) => ({ topic: t.topic, tags: t.tags })) ?? []);
+
+  const config: AIConfig = {
+    enabled: profile.enabled,
+    apiBaseUrl: profile.apiBaseUrl,
+    apiKey: profile.apiKey,
+    model: profile.model,
+    timeoutMs: profile.timeoutMs,
+    fallbackToMock: profile.fallbackToMock,
+  };
+
+  const actualPrefCtx = ignorePreferences ? undefined : preferenceContext;
+
+  // Step 1: 尝试 AI 调用
+  let rawModelOutput = "";
+  let parsedRaw: Partial<AIOrganizeResult> | null = null;
+
+  try {
+    const endpoint = normalizeApiEndpoint(config.apiBaseUrl, profile.providerType);
+
+    let userContent: string;
+    if ((topicContext && topicContext.existingTopics.length > 0) || actualPrefCtx) {
+      const payload: Record<string, unknown> = { rawText };
+      if (topicContext && topicContext.existingTopics.length > 0) {
+        payload.existingTopics = topicContext.existingTopics;
+        payload.recentTopTopics = topicContext.recentTopTopics;
+      }
+      if (actualPrefCtx) {
+        const hints: string[] = [];
+        if (actualPrefCtx.bannedGenericTags.length > 0) {
+          hints.push(`避免使用这些泛标签：${actualPrefCtx.bannedGenericTags.join("、")}`);
+          diag.preferenceHits.push(`bannedGenericTags: ${actualPrefCtx.bannedGenericTags.length} 条`);
+        }
+        if (actualPrefCtx.preferredTopicAliases.length > 0) {
+          hints.push(`主题修正偏好: ${actualPrefCtx.preferredTopicAliases.slice(0, 5).map((a) => `${a.from}→${a.to}`).join("、")}`);
+          diag.preferenceHits.push(`topicAliases: ${actualPrefCtx.preferredTopicAliases.length} 条`);
+        }
+        if (actualPrefCtx.fewShotExamples.length > 0) {
+          payload.referenceExamples = actualPrefCtx.fewShotExamples.map((e) => ({
+            input: e.rawText.slice(0, 50),
+            output: { title: e.result.title, type: e.result.type, tags: e.result.tags, topic: e.result.topic, promoteLevel: e.result.promoteLevel },
+          }));
+          diag.preferenceHits.push(`fewShotExamples: ${actualPrefCtx.fewShotExamples.length} 条`);
+        }
+        if (hints.length > 0) payload.preferenceHints = hints;
+      }
+      userContent = JSON.stringify(payload);
+    } else {
+      userContent = rawText;
+    }
+
+    const body = {
+      model: config.model,
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "");
+        throw new Error(`请求失败 (${res.status}): ${errorText.slice(0, 100)}`);
+      }
+
+      const data = await res.json();
+      const content = extractAssistantText(data);
+      if (!content) throw new Error("AI 返回内容为空");
+
+      rawModelOutput = content;
+      diag.rawModelOutput = content;
+
+      // Step 2: 解析 JSON
+      try {
+        let jsonStr = content.trim();
+        const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+        if (codeBlockMatch) {
+          jsonStr = codeBlockMatch[1].trim();
+          diag.parseStatus = "从代码块中提取";
+        }
+        parsedRaw = JSON.parse(jsonStr) as Partial<AIOrganizeResult>;
+        diag.parsedRaw = parsedRaw;
+      } catch {
+        // 解析失败，尝试重试
+        diag.parseStatus = "解析失败后重试成功";
+        diag.retried = true;
+        try {
+          const retryBody = {
+            model: config.model,
+            temperature: 0.3,
+            messages: [
+              { role: "system", content: `${SYSTEM_PROMPT}\n\n${RETRY_PROMPT}` },
+              { role: "user", content: userContent },
+            ],
+          };
+          const retryRes = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify(retryBody),
+            signal: controller.signal,
+          });
+          if (!retryRes.ok) throw new Error("重试失败");
+          const retryData = await retryRes.json();
+          const retryContent = extractAssistantText(retryData);
+          rawModelOutput = retryContent;
+          diag.rawModelOutput = retryContent;
+          let jsonStr = retryContent.trim();
+          const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+          if (codeBlockMatch) {
+            jsonStr = codeBlockMatch[1].trim();
+          }
+          parsedRaw = JSON.parse(jsonStr) as Partial<AIOrganizeResult>;
+          diag.parsedRaw = parsedRaw;
+        } catch {
+          diag.parseStatus = "最终回退本地整理";
+          diag.usedFallback = true;
+        }
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (err) {
+    diag.failureReason = err instanceof Error ? err.message : "未知错误";
+    diag.usedFallback = true;
+    diag.parseStatus = "最终回退本地整理";
+  }
+
+  // Step 3: 后处理（带诊断）
+  if (parsedRaw && !diag.usedFallback) {
+    // 标题修正
+    if (!parsedRaw.title || isGenericTitle(parsedRaw.title)) {
+      diag.corrections.push("标题过泛，已重写");
+    }
+    if (titleBlacklist.length > 0 && parsedRaw.title && titleBlacklist.some((p) => parsedRaw.title!.includes(p))) {
+      diag.corrections.push("标题命中黑名单，已重写");
+      diag.blacklistHits.push("泛标题");
+    }
+
+    // 类型修正
+    if (!VALID_TYPES.includes(parsedRaw.type as RecordType)) {
+      diag.corrections.push("类型非法，已改为随记");
+    }
+
+    // 标签修正
+    if (Array.isArray(parsedRaw.tags)) {
+      const beforeTags = [...parsedRaw.tags];
+      const filteredGeneric = beforeTags.filter((t) => isGenericTag(t));
+      const filteredBanned = beforeTags.filter((t) => bannedTags.includes(t));
+      if (filteredGeneric.length > 0) diag.corrections.push(`标签去泛: ${filteredGeneric.join("、")}`);
+      if (filteredBanned.length > 0) {
+        diag.corrections.push(`过滤偏好禁用标签: ${filteredBanned.join("、")}`);
+        diag.blacklistHits.push("泛标签");
+      }
+    }
+
+    // 主题修正
+    if (parsedRaw.topic && topicAliases.length > 0) {
+      const alias = topicAliases.find((a) => a.from === parsedRaw!.topic);
+      if (alias) {
+        diag.corrections.push(`主题别名替换: ${alias.from} → ${alias.to}`);
+        diag.preferenceHits.push("topicAlias 替换");
+      }
+    }
+    if (parsedRaw.topic && isGenericTopic(parsedRaw.topic)) {
+      diag.corrections.push("主题过泛，已替换");
+    }
+
+    // 建议修正
+    if (Array.isArray(parsedRaw.suggestions)) {
+      const genericSuggs = parsedRaw.suggestions.filter((s) => isGenericSuggestion(s));
+      if (genericSuggs.length > 0) {
+        diag.corrections.push(`建议过泛，已过滤: ${genericSuggs.join("、")}`);
+        diag.blacklistHits.push("泛建议");
+      }
+    }
+  }
+
+  // Step 4: 生成最终结果
+  if (diag.usedFallback) {
+    // Mock 整理
+    const result = generateMockResult(rawText);
+    diag.result = result;
+  } else if (parsedRaw) {
+    diag.result = normalizeResult(parsedRaw, rawText, topicContext, actualPrefCtx);
+  }
+
+  diag.durationMs = Date.now() - startTime;
+  return diag;
+}
+
+/** 生成 mock 整理结果（用于本地回退） */
+function generateMockResult(rawText: string): AIOrganizeResult {
+  const cleaned = rawText.replace(/\s+/g, " ").trim();
+  const title = cleaned.length <= 18 ? cleaned : cleaned.slice(0, 15) + "…";
+  const summary = cleaned.length <= 50 ? cleaned : cleaned.slice(0, 48) + "…";
+
+  // 简单关键词推断类型
+  let type: RecordType = "随记";
+  if (/要|记得|得|补|整理|完成/.test(rawText)) type = "待办";
+  if (/作品集|品牌|app|工具/.test(rawText) && /做|开发|准备/.test(rawText)) type = "项目";
+  if (/？|\?|到底|怎么|还是/.test(rawText)) type = "问题";
+  if (/复盘|总结|教训/.test(rawText)) type = "复盘";
+  if (/参考|收藏|看到|学习/.test(rawText)) type = "参考";
+  if (/灵感|点子|想法|可以/.test(rawText) && !/要|得|记得/.test(rawText)) type = "灵感";
+
+  return {
+    title,
+    summary,
+    type,
+    aiSubType: type === "随记" ? "日常记录" : undefined,
+    typeConfidence: 0.3,
+    typeReason: "本地回退，基于关键词推断",
+    tags: extractKeywordsFromRaw(rawText).slice(0, 3),
+    topic: "未分类主题",
+    promoteLevel: type === "待办" ? "建议行动" : type === "项目" ? "建议立项" : "仅保存",
+    suggestions: [],
+  };
+}

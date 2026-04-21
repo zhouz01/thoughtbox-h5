@@ -15,6 +15,9 @@ import BriefDetailPage from "./pages/BriefDetailPage";
 import SyncSettingsPage from "./pages/SyncSettingsPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import ArchivedPage from "./pages/ArchivedPage";
+import SettingsPage from "./pages/SettingsPage";
+import AICalibrationPage from "./pages/AICalibrationPage";
 
 export default function App() {
   return (
@@ -31,12 +34,15 @@ export default function App() {
           <Route path="/topics" element={<TopicsPage />} />
           <Route path="/topics/:name" element={<TopicDetailPage />} />
           <Route path="/review" element={<ReviewPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/ai" element={<AISettingsPage />} />
           <Route path="/settings/preferences" element={<PreferencesPage />} />
           <Route path="/settings/sync" element={<SyncSettingsPage />} />
           <Route path="/synthesis/:id" element={<SynthesisDetailPage />} />
           <Route path="/briefs" element={<BriefListPage />} />
           <Route path="/brief/:id" element={<BriefDetailPage />} />
+          <Route path="/archived" element={<ArchivedPage />} />
+          <Route path="/lab/ai" element={<AICalibrationPage />} />
         </Route>
       </Routes>
     </AppProvider>

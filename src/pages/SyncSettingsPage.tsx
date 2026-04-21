@@ -1,572 +1,514 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context";
-import type { SyncStatus } from "../types";
 import {
   getSyncConfig,
   saveSyncConfig,
-  clearSyncConfig,
-  isSyncLoggedIn,
-  getSyncMeta,
   getSyncLog,
-  APP_VERSION,
+  getSyncSession,
+  clearSyncSession,
 } from "../syncConfig";
 import {
-  resetSupabaseClient,
-  initSupabaseClient,
-  sendOtpEmail,
-  verifyOtp,
-  logoutSync,
-  getCurrentUser,
+  bidirectionalSync,
   pushToCloud,
   pullFromCloud,
-  bidirectionalSync,
   createLocalBackup,
-  getLocalBackups,
   restoreFromLocalBackup,
-  type SyncOperationResult,
+  sendMagicLink,
 } from "../syncService";
-
-// 内联 SVG 图标
-const ArrowLeftIcon = () => (
-  <svg className="w-5 h-5 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const CloudIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const CloudOffIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M2 2l20 20M8.5 8.5a6 6 0 0 0 8.5 8.5M14 14l2.5 2.5M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const CheckIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const AlertIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M12 8v4M12 16h.01" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const UploadIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const DownloadIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const RefreshIcon = ({ spinning }: { spinning?: boolean }) => (
-  <svg className={`w-5 h-5 ${spinning ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const LogoutIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const SaveIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const SmartphoneIcon = () => (
-  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-    <path d="M12 18h.01" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const LaptopIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM2 18h20" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const ShieldIcon = () => (
-  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const InfoIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M12 16v-4M12 8h.01" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
 
 export default function SyncSettingsPage() {
   const navigate = useNavigate();
   const { reloadFromStorage } = useApp();
-  const [config, setConfig] = useState(getSyncConfig());
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>("未配置");
-  const [syncMeta, setSyncMeta] = useState(getSyncMeta());
-  const [syncLog, setSyncLog] = useState(getSyncLog());
-  const [userEmail, setUserEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const [loginEmail, setLoginEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [showOtpInput, setShowOtpInput] = useState(false);
+  const config = getSyncConfig();
+  const session = getSyncSession();
+  const logs = getSyncLog();
 
-  const refreshStatus = useCallback(async () => {
-    const loggedIn = isSyncLoggedIn();
-    setIsLoggedIn(loggedIn);
-    setSyncMeta(getSyncMeta());
-    setSyncLog(getSyncLog());
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [syncMessage, setSyncMessage] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [email, setEmail] = useState(session?.email || "");
+  const [sendingLink, setSendingLink] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+  const [backupState, setBackupState] = useState<"idle" | "backing_up" | "restoring">("idle");
+  const [backupMessage, setBackupMessage] = useState("");
 
-    if (!config.supabaseUrl || !config.supabaseAnonKey) {
-      setSyncStatus("未配置");
-      return;
-    }
-    if (!loggedIn) {
-      setSyncStatus("未登录");
-      return;
-    }
-    const user = await getCurrentUser();
-    if (user) {
-      setUserEmail(user.email ?? "");
-      setSyncStatus("已连接");
-    } else {
-      setSyncStatus("未登录");
-    }
-  }, [config.supabaseUrl, config.supabaseAnonKey]);
+  const isConfigured = !!(config.supabaseUrl && config.supabaseKey);
+  const isLoggedIn = !!session?.email;
 
-  useEffect(() => {
-    refreshStatus();
-  }, [refreshStatus]);
+  // 当前设备名
+  const deviceName = useMemo(() => {
+    const ua = navigator.userAgent;
+    if (/iPhone/.test(ua)) return "iPhone";
+    if (/iPad/.test(ua)) return "iPad";
+    if (/Android/.test(ua)) return "Android";
+    if (/Mac/.test(ua)) return "Mac";
+    if (/Win/.test(ua)) return "Windows";
+    return "当前设备";
+  }, []);
 
-  const handleSaveConfig = () => {
-    saveSyncConfig(config);
-    resetSupabaseClient();
-    initSupabaseClient();
-    setMessage({ type: "success", text: "配置已保存" });
-    setTimeout(() => setMessage(null), 3000);
-    refreshStatus();
+  // 上次同步时间
+  const lastSyncTime = useMemo(() => {
+    const lastLog = logs.find((l) => l.status === "success");
+    return lastLog ? lastLog.timestamp : config.lastSyncAt;
+  }, [logs, config.lastSyncAt]);
+
+  // 状态计算
+  const currentStatus = syncState === "syncing"
+    ? "同步中"
+    : syncState === "success"
+    ? "同步成功"
+    : syncState === "error"
+    ? "同步失败"
+    : !isConfigured
+    ? "未配置"
+    : !isLoggedIn
+    ? "未登录"
+    : "已连接";
+
+  const statusColor = syncState === "syncing"
+    ? "text-amber-600"
+    : syncState === "success"
+    ? "text-emerald-600"
+    : syncState === "error"
+    ? "text-rose-500"
+    : !isConfigured || !isLoggedIn
+    ? "text-stone-400"
+    : "text-emerald-600";
+
+  const statusDot = syncState === "syncing"
+    ? "bg-amber-400"
+    : syncState === "success"
+    ? "bg-emerald-400"
+    : syncState === "error"
+    ? "bg-rose-400"
+    : !isConfigured || !isLoggedIn
+    ? "bg-stone-300"
+    : "bg-emerald-400";
+
+  // 保存配置
+  const handleSaveConfig = (partial: Partial<typeof config>) => {
+    saveSyncConfig({ ...config, ...partial });
   };
 
-  const handleClearConfig = () => {
-    if (confirm("确定要清除同步配置吗？本地数据不会丢失。")) {
-      clearSyncConfig();
-      logoutSync();
-      resetSupabaseClient();
-      setConfig(getSyncConfig());
-      setMessage({ type: "success", text: "配置已清除" });
-      refreshStatus();
-    }
-  };
-
-  const handleSendOtp = async () => {
-    if (!loginEmail.trim()) {
-      setMessage({ type: "error", text: "请输入邮箱" });
-      return;
-    }
-    if (!config.supabaseUrl || !config.supabaseAnonKey) {
-      setMessage({ type: "error", text: "请先配置同步服务" });
-      return;
-    }
-    setIsLoading(true);
-    const result = await sendOtpEmail(loginEmail.trim());
-    setIsLoading(false);
-    if (result.success) {
-      setShowOtpInput(true);
-      setMessage({ type: "success", text: "验证码已发送，请查收邮件" });
-    } else {
-      setMessage({ type: "error", text: result.error || "发送失败" });
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpCode.trim()) {
-      setMessage({ type: "error", text: "请输入验证码" });
-      return;
-    }
-    setIsLoading(true);
-    const result = await verifyOtp(loginEmail.trim(), otpCode.trim());
-    setIsLoading(false);
-    if (result.success) {
-      setMessage({ type: "success", text: "登录成功" });
-      setShowOtpInput(false);
-      setOtpCode("");
-      refreshStatus();
-    } else {
-      setMessage({ type: "error", text: result.error || "验证失败" });
+  // 发送登录链接
+  const handleSendLink = async () => {
+    if (!email.trim() || !config.supabaseUrl || !config.supabaseKey) return;
+    setSendingLink(true);
+    setLinkSent(false);
+    try {
+      const result = await sendMagicLink(email.trim(), config.supabaseUrl, config.supabaseKey);
+      if (result.success) {
+        setLinkSent(true);
+      } else {
+        setSyncMessage(result.message || "发送失败");
+        setSyncState("error");
+      }
+    } catch {
+      setSyncMessage("网络错误，请检查配置");
+      setSyncState("error");
+    } finally {
+      setSendingLink(false);
     }
   };
 
-  const handleLogout = async () => {
-    if (confirm("确定要退出同步账号吗？本地数据不会丢失。")) {
-      await logoutSync();
-      resetSupabaseClient();
-      setMessage({ type: "success", text: "已退出登录" });
-      refreshStatus();
+  // 退出登录
+  const handleLogout = () => {
+    clearSyncSession();
+    setSyncMessage("已退出同步账号");
+    setSyncState("success");
+    setTimeout(() => setSyncState("idle"), 2000);
+  };
+
+  // 双向同步
+  const handleBidirectional = async () => {
+    if (!isConfigured || !isLoggedIn) return;
+    setSyncState("syncing");
+    setSyncMessage("正在双向同步…");
+    try {
+      const result = await bidirectionalSync();
+      if (result.success) {
+        setSyncMessage("双向同步成功");
+        setSyncState("success");
+        reloadFromStorage();
+      } else {
+        setSyncMessage(result.message || "同步失败");
+        setSyncState("error");
+      }
+    } catch {
+      setSyncMessage("同步出错，请检查网络");
+      setSyncState("error");
     }
   };
 
-  const handleSync = async (action: "push" | "pull" | "merge") => {
-    setIsLoading(true);
-    setSyncStatus("同步中");
-    if (config.autoBackupBeforeSync) {
-      createLocalBackup(`before_${action}`);
+  // 上传到云端
+  const handlePush = async () => {
+    if (!isConfigured || !isLoggedIn) return;
+    setSyncState("syncing");
+    setSyncMessage("正在上传到云端…");
+    try {
+      const result = await pushToCloud();
+      if (result.success) {
+        setSyncMessage("上传成功");
+        setSyncState("success");
+      } else {
+        setSyncMessage(result.message || "上传失败");
+        setSyncState("error");
+      }
+    } catch {
+      setSyncMessage("上传出错");
+      setSyncState("error");
     }
-    let result: SyncOperationResult;
-    switch (action) {
-      case "push":
-        result = await pushToCloud();
-        break;
-      case "pull":
-        result = await pullFromCloud();
-        break;
-      default:
-        result = await bidirectionalSync();
-    }
-    setIsLoading(false);
-    setSyncStatus(result.success ? "同步成功" : "同步失败");
-    setSyncMeta(getSyncMeta());
-    setSyncLog(getSyncLog());
-    setMessage({ type: result.success ? "success" : "error", text: result.error || result.message });
-    if (result.success) {
-      reloadFromStorage();
-      setMessage({
-        type: "success",
-        text: result.details || "同步成功",
-      });
-    } else {
-      setMessage({
-        type: "error",
-        text: result.error || result.message || "同步失败",
-      });
-    }
-    setTimeout(() => setMessage(null), 8000);
   };
 
+  // 从云端拉取
+  const handlePull = async () => {
+    if (!isConfigured || !isLoggedIn) return;
+    setSyncState("syncing");
+    setSyncMessage("正在从云端拉取…");
+    try {
+      const result = await pullFromCloud();
+      if (result.success) {
+        setSyncMessage("拉取成功");
+        setSyncState("success");
+        reloadFromStorage();
+      } else {
+        setSyncMessage(result.message || "拉取失败");
+        setSyncState("error");
+      }
+    } catch {
+      setSyncMessage("拉取出错");
+      setSyncState("error");
+    }
+  };
+
+  // 创建本地备份
   const handleCreateBackup = () => {
-    createLocalBackup("manual");
-    setMessage({ type: "success", text: "本地备份已创建" });
-    setTimeout(() => setMessage(null), 3000);
-  };
-
-  const handleRestoreBackup = (backupId: string) => {
-    if (confirm("确定要从此备份恢复吗？当前数据将被覆盖。")) {
-      const success = restoreFromLocalBackup(backupId);
-      setMessage({ type: success ? "success" : "error", text: success ? "备份已恢复" : "恢复失败" });
-      setTimeout(() => setMessage(null), 3000);
+    setBackupState("backing_up");
+    setBackupMessage("");
+    try {
+      const result = createLocalBackup();
+      if (result.success) {
+        setBackupMessage("本地备份已创建");
+      } else {
+        setBackupMessage(result.message || "备份失败");
+      }
+    } catch {
+      setBackupMessage("备份出错");
+    } finally {
+      setBackupState("idle");
     }
   };
 
-  const getStatusColor = (status: SyncStatus) => {
-    switch (status) {
-      case "已连接":
-      case "同步成功":
-        return "text-emerald-600 bg-emerald-50";
-      case "同步中":
-        return "text-blue-600 bg-blue-50";
-      case "同步失败":
-        return "text-rose-600 bg-rose-50";
-      default:
-        return "text-stone-500 bg-stone-100";
+  // 从备份恢复
+  const handleRestoreBackup = () => {
+    setBackupState("restoring");
+    setBackupMessage("");
+    try {
+      const result = restoreFromLocalBackup();
+      if (result.success) {
+        setBackupMessage("已从备份恢复");
+        reloadFromStorage();
+      } else {
+        setBackupMessage(result.message || "恢复失败");
+      }
+    } catch {
+      setBackupMessage("恢复出错");
+    } finally {
+      setBackupState("idle");
     }
   };
-
-  const backups = getLocalBackups();
 
   return (
-    <div className="min-h-screen bg-[#0f0f11] text-stone-200">
-      <div className="sticky top-0 z-10 bg-[#0f0f11]/95 backdrop-blur-sm border-b border-stone-800/50 safe-top">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-stone-800/50 rounded-lg transition-colors">
-            <ArrowLeftIcon />
-          </button>
-          <h1 className="text-base font-medium text-stone-100">数据同步</h1>
-          <div className="w-9" />
-        </div>
+    <div className="flex flex-col h-full bg-stone-100">
+      {/* ====== 1. 顶部导航栏 ====== */}
+      <div className="flex items-center justify-between px-5 py-3 bg-white/80 backdrop-blur-xl border-b border-stone-200/50">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1 text-[13px] text-stone-500 active:text-stone-400 transition-colors min-w-[48px] py-1"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          返回
+        </button>
+        <h1 className="text-[13px] font-semibold text-stone-900">数据同步</h1>
+        <div className="min-w-[48px]" />
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 pb-32 space-y-6">
-        {message && (
-          <div className={`p-4 rounded-xl flex items-center gap-3 ${message.type === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
-            {message.type === "success" ? <CheckIcon /> : <AlertIcon />}
-            <p className="text-sm">{message.text}</p>
+      {/* ====== 内容区 ====== */}
+      <div className="flex-1 overflow-y-auto px-5 pt-5 pb-8">
+        {/* ====== 2. 当前状态卡片 ====== */}
+        <section className="mb-5 animate-fade-in" style={{ animationDelay: "20ms" }}>
+          <SectionLabel>当前状态</SectionLabel>
+          <div className="bg-white rounded-2xl p-4 border border-stone-200/50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`w-[7px] h-[7px] rounded-full ${statusDot}`} />
+              <span className={`text-[15px] font-bold ${statusColor}`}>{currentStatus}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+              <StatusRow label="当前设备" value={deviceName} />
+              <StatusRow label="同步账号" value={session?.email || "—"} />
+              <StatusRow label="上次同步" value={lastSyncTime ? formatRelativeTime(lastSyncTime) : "—"} />
+              <StatusRow label="最近结果" value={syncState === "idle" ? "—" : syncMessage} valueClass={syncState === "error" ? "text-rose-500" : syncState === "success" ? "text-emerald-600" : "text-stone-500"} />
+            </div>
           </div>
-        )}
+        </section>
 
-        {/* 状态卡片 */}
-        <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl ${getStatusColor(syncStatus)}`}>
-                {syncStatus === "已连接" || syncStatus === "同步成功" ? <CloudIcon /> : <CloudOffIcon />}
-              </div>
-              <div>
-                <h2 className="text-sm font-medium text-stone-100">同步状态</h2>
-                <p className="text-xs text-stone-500 mt-0.5">{syncStatus}</p>
-              </div>
-            </div>
-            {isLoggedIn && userEmail && <span className="text-xs text-stone-400">{userEmail}</span>}
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-stone-800/30 rounded-lg p-3">
-              <p className="text-stone-500 mb-1">当前设备</p>
-              <p className="text-stone-300 flex items-center gap-1.5">
-                <SmartphoneIcon />
-                {syncMeta.deviceName}
-              </p>
-            </div>
-            <div className="bg-stone-800/30 rounded-lg p-3">
-              <p className="text-stone-500 mb-1">上次同步</p>
-              <p className="text-stone-300">
-                {syncMeta.lastSyncAt ? new Date(syncMeta.lastSyncAt).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "从未"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* 同步服务配置 */}
-        <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
-          <h2 className="text-sm font-medium text-stone-100 mb-4 flex items-center gap-2">
-            <LaptopIcon />
-            同步服务配置
-          </h2>
-          <p className="text-xs text-stone-500 mb-4">支持 MemFire Cloud（国内）或 Supabase，两者 API 兼容</p>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-stone-500 mb-1.5 block">服务地址</label>
+        {/* ====== 3. 云端连接配置 ====== */}
+        <section className="mb-5 animate-fade-in" style={{ animationDelay: "40ms" }}>
+          <SectionLabel>云端连接配置</SectionLabel>
+          <div className="bg-white rounded-2xl p-4 border border-stone-200/50 space-y-4">
+            <FormField label="服务地址">
               <input
-                type="text"
+                type="url"
                 value={config.supabaseUrl}
-                onChange={(e) => setConfig({ ...config, supabaseUrl: e.target.value })}
-                placeholder="https://your-project.memfiredb.com 或 https://xxx.supabase.co"
-                className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
+                onChange={(e) => handleSaveConfig({ supabaseUrl: e.target.value })}
+                placeholder="https://your-project.supabase.co"
+                className="w-full px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all"
               />
-            </div>
-            <div>
-              <label className="text-xs text-stone-500 mb-1.5 block">Publishable Key (Anon Key)</label>
-              <input
-                type="password"
-                value={config.supabaseAnonKey}
-                onChange={(e) => setConfig({ ...config, supabaseAnonKey: e.target.value })}
-                placeholder="eyJhbGciOiJIUzI1NiIs..."
-                className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
-              />
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-stone-400">同步前自动本地备份</span>
-              <button
-                onClick={() => setConfig({ ...config, autoBackupBeforeSync: !config.autoBackupBeforeSync })}
-                className={`w-11 h-6 rounded-full transition-colors ${config.autoBackupBeforeSync ? "bg-teal-500" : "bg-stone-700"}`}
-              >
-                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${config.autoBackupBeforeSync ? "translate-x-6" : "translate-x-1"} mt-1`} />
-              </button>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handleSaveConfig} className="flex-1 bg-teal-500 hover:bg-teal-400 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
-                <SaveIcon />
-                保存配置
-              </button>
-              <button onClick={handleClearConfig} className="px-4 py-3 border border-stone-700/50 text-stone-400 rounded-xl text-sm hover:bg-stone-800/50 transition-colors">
-                清除
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 登录与连接 */}
-        <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
-          <h2 className="text-sm font-medium text-stone-100 mb-4">登录与连接</h2>
-          {isLoggedIn ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-emerald-500/10 rounded-xl">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <CheckIcon />
-                </div>
-                <div>
-                  <p className="text-sm text-stone-200">已连接到同步服务</p>
-                  <p className="text-xs text-stone-500">{userEmail}</p>
-                </div>
+            </FormField>
+            <FormField label="公开密钥">
+              <div className="relative">
+                <input
+                  type={showKey ? "text" : "password"}
+                  value={config.supabaseKey}
+                  onChange={(e) => handleSaveConfig({ supabaseKey: e.target.value })}
+                  placeholder="eyJ..."
+                  className="w-full px-3 py-2.5 pr-12 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                >
+                  {showKey ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  )}
+                </button>
               </div>
-              <button onClick={handleLogout} className="w-full py-3 border border-stone-700/50 text-stone-400 rounded-xl text-sm hover:bg-stone-800/50 transition-colors flex items-center justify-center gap-2">
-                <LogoutIcon />
-                退出同步账号
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {!showOtpInput ? (
-                <>
+            </FormField>
+            <ToggleRow label="打开应用时自动检查云端" value={config.autoCheckOnOpen} onChange={(v) => handleSaveConfig({ autoCheckOnOpen: v })} />
+            <ToggleRow label="同步前自动本地备份" value={config.autoBackupBeforeSync} onChange={(v) => handleSaveConfig({ autoBackupBeforeSync: v })} />
+          </div>
+        </section>
+
+        {/* ====== 4. 登录与账号状态 ====== */}
+        <section className="mb-5 animate-fade-in" style={{ animationDelay: "60ms" }}>
+          <SectionLabel>登录与账号</SectionLabel>
+          <div className="bg-white rounded-2xl p-4 border border-stone-200/50">
+            {isLoggedIn ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-[6px] h-[6px] rounded-full bg-emerald-400" />
+                  <span className="text-[13px] text-stone-700">已连接</span>
+                  <span className="text-[13px] font-medium text-stone-900">{session.email}</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-stone-100 text-stone-600 active:bg-stone-200 transition-colors"
+                >
+                  退出同步账号
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[13px] text-stone-500">当前未登录</p>
+                <div className="flex gap-2">
                   <input
                     type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="输入邮箱地址"
-                    className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
+                    className="flex-1 px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 transition-all"
                   />
-                  <button
-                    onClick={handleSendOtp}
-                    disabled={isLoading || !config.supabaseUrl || !config.supabaseAnonKey}
-                    className="w-full bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 disabled:text-stone-500 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
-                  >
-                    {isLoading ? "发送中..." : "发送验证码"}
-                  </button>
+                </div>
+                <button
+                  onClick={handleSendLink}
+                  disabled={sendingLink || !email.trim() || !isConfigured}
+                  className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50"
+                >
+                  {sendingLink ? "发送中…" : "发送登录链接"}
+                </button>
+                {linkSent && (
+                  <p className="text-[12px] text-emerald-600">登录链接已发送到邮箱，请查收</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ====== 5. 同步操作区 ====== */}
+        <section className="mb-5 animate-fade-in" style={{ animationDelay: "80ms" }}>
+          <SectionLabel>同步操作</SectionLabel>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleBidirectional}
+              disabled={!isConfigured || !isLoggedIn || syncState === "syncing"}
+              className="w-full py-3 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50 disabled:active:bg-stone-900 flex items-center justify-center gap-2"
+            >
+              {syncState === "syncing" ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  同步中…
                 </>
               ) : (
                 <>
-                  <input
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="输入邮箱验证码"
-                    className="w-full bg-stone-800/50 border border-stone-700/50 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-teal-500/50"
-                  />
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleVerifyOtp}
-                      disabled={isLoading}
-                      className="flex-1 bg-teal-500 hover:bg-teal-400 disabled:bg-stone-700 text-stone-950 font-medium py-3 rounded-xl text-sm transition-colors"
-                    >
-                      {isLoading ? "验证中..." : "验证登录"}
-                    </button>
-                    <button
-                      onClick={() => setShowOtpInput(false)}
-                      className="px-4 py-3 border border-stone-700/50 text-stone-400 rounded-xl text-sm hover:bg-stone-800/50 transition-colors"
-                    >
-                      返回
-                    </button>
-                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>
+                  双向同步
                 </>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* 同步操作 */}
-        {isLoggedIn && (
-          <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
-            <h2 className="text-sm font-medium text-stone-100 mb-4">同步操作</h2>
-            <div className="grid grid-cols-3 gap-3">
+            </button>
+            <div className="flex gap-2">
               <button
-                onClick={() => handleSync("push")}
-                disabled={isLoading}
-                className="p-4 bg-stone-800/50 hover:bg-stone-800 rounded-xl transition-colors flex flex-col items-center gap-2"
+                onClick={handlePush}
+                disabled={!isConfigured || !isLoggedIn || syncState === "syncing"}
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-medium bg-white text-stone-600 border border-stone-200/80 active:bg-stone-50 transition-colors disabled:opacity-50"
               >
-                <UploadIcon />
-                <span className="text-xs text-teal-400">上传到云端</span>
+                上传到云端
               </button>
               <button
-                onClick={() => handleSync("pull")}
-                disabled={isLoading}
-                className="p-4 bg-stone-800/50 hover:bg-stone-800 rounded-xl transition-colors flex flex-col items-center gap-2"
+                onClick={handlePull}
+                disabled={!isConfigured || !isLoggedIn || syncState === "syncing"}
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-medium bg-white text-stone-600 border border-stone-200/80 active:bg-stone-50 transition-colors disabled:opacity-50"
               >
-                <DownloadIcon />
-                <span className="text-xs text-blue-400">从云端拉取</span>
-              </button>
-              <button
-                onClick={() => handleSync("merge")}
-                disabled={isLoading}
-                className="p-4 bg-stone-800/50 hover:bg-stone-800 rounded-xl transition-colors flex flex-col items-center gap-2"
-              >
-                <RefreshIcon spinning={isLoading} />
-                <span className="text-xs text-emerald-400">双向同步</span>
+                从云端拉取
               </button>
             </div>
           </div>
-        )}
-
-        {/* 本地备份 */}
-        <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
-          <h2 className="text-sm font-medium text-stone-100 mb-4">本地备份</h2>
-          <button onClick={handleCreateBackup} className="w-full mb-4 py-3 bg-stone-800/50 hover:bg-stone-800 text-stone-300 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
-            <SaveIcon />
-            创建本地备份
-          </button>
-          {backups.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-stone-500">最近备份</p>
-              {backups.slice(0, 3).map((backup) => (
-                <div key={backup.id} className="flex items-center justify-between p-3 bg-stone-800/30 rounded-lg">
-                  <div>
-                    <p className="text-xs text-stone-300">{new Date(backup.timestamp).toLocaleString("zh-CN")}</p>
-                    <p className="text-xs text-stone-500">{backup.reason}</p>
-                  </div>
-                  <button onClick={() => handleRestoreBackup(backup.id)} className="px-3 py-1.5 text-xs text-teal-400 hover:bg-teal-500/10 rounded-lg transition-colors">
-                    恢复
-                  </button>
-                </div>
-              ))}
-            </div>
+          {!isConfigured && (
+            <p className="text-[11px] text-stone-400 mt-2">请先填写云端连接配置</p>
           )}
-        </div>
+          {isConfigured && !isLoggedIn && (
+            <p className="text-[11px] text-stone-400 mt-2">请先登录同步账号</p>
+          )}
+        </section>
 
-        {/* 说明 */}
-        <div className="bg-stone-900/30 rounded-2xl p-5 border border-stone-800/30">
-          <h2 className="text-sm font-medium text-stone-100 mb-3 flex items-center gap-2">
-            <InfoIcon />
-            说明
-          </h2>
-          <ul className="space-y-2 text-xs text-stone-500">
-            <li className="flex items-start gap-2">
-              <ShieldIcon />
-              <span>AI API Key 不会同步到云端，仅保存在当前设备</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CloudIcon />
-              <span>支持 MemFire Cloud（国内，无需 VPN）或 Supabase</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <RefreshIcon />
-              <span>双向同步默认采用"最近修改优先"策略</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <SmartphoneIcon />
-              <span>在手机和电脑间同步，请使用同一个账号登录</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* 同步日志 */}
-        {syncLog.length > 0 && (
-          <div className="bg-stone-900/50 rounded-2xl p-5 border border-stone-800/50">
-            <h2 className="text-sm font-medium text-stone-100 mb-4">最近同步记录</h2>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {syncLog.slice(0, 5).map((entry) => (
-                <div key={entry.id} className="flex items-center gap-3 p-2.5 bg-stone-800/30 rounded-lg">
-                  <div className={`w-2 h-2 rounded-full ${entry.status === "success" ? "bg-emerald-500" : "bg-rose-500"}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-stone-300 truncate">{entry.details || entry.error || entry.action}</p>
-                    <p className="text-xs text-stone-500">{new Date(entry.timestamp).toLocaleString("zh-CN")}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 版本信息与强制刷新 */}
-        <div className="bg-stone-900/30 rounded-2xl p-5 border border-stone-800/30">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-stone-500">版本 {APP_VERSION}</p>
+        {/* ====== 6. 本地备份区 ====== */}
+        <section className="mb-5 animate-fade-in" style={{ animationDelay: "100ms" }}>
+          <SectionLabel>本地备份</SectionLabel>
+          <div className="flex gap-2">
             <button
-              onClick={() => {
-                if ('caches' in window) {
-                  caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
-                }
-                window.location.reload();
-              }}
-              className="text-xs text-stone-400 hover:text-stone-200 transition-colors"
+              onClick={handleCreateBackup}
+              disabled={backupState !== "idle"}
+              className="flex-1 py-2.5 rounded-xl text-[13px] font-medium bg-white text-stone-600 border border-stone-200/80 active:bg-stone-50 transition-colors disabled:opacity-50"
             >
-              清除缓存并刷新
+              {backupState === "backing_up" ? "备份中…" : "创建本地备份"}
+            </button>
+            <button
+              onClick={handleRestoreBackup}
+              disabled={backupState !== "idle"}
+              className="flex-1 py-2.5 rounded-xl text-[13px] font-medium bg-white text-stone-600 border border-stone-200/80 active:bg-stone-50 transition-colors disabled:opacity-50"
+            >
+              {backupState === "restoring" ? "恢复中…" : "从备份恢复"}
             </button>
           </div>
-        </div>
+          {backupMessage && (
+            <p className={`text-[11px] mt-2 ${backupMessage.includes("失败") || backupMessage.includes("出错") ? "text-rose-500" : "text-emerald-600"}`}>
+              {backupMessage}
+            </p>
+          )}
+        </section>
+
+        {/* ====== 7. 最近同步记录 ====== */}
+        {logs.length > 0 && (
+          <section className="mb-5 animate-fade-in" style={{ animationDelay: "120ms" }}>
+            <SectionLabel>最近同步记录</SectionLabel>
+            <div className="bg-white rounded-2xl border border-stone-200/50 overflow-hidden">
+              {logs.slice(0, 5).map((log, i) => (
+                <div key={i} className={`flex items-center justify-between px-4 py-3 ${i < logs.slice(0, 5).length - 1 ? "border-b border-stone-100" : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-[5px] h-[5px] rounded-full ${log.status === "success" ? "bg-emerald-400" : log.status === "error" ? "bg-rose-400" : "bg-amber-400"}`} />
+                    <span className="text-[12px] text-stone-700">{log.action}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] ${log.status === "success" ? "text-emerald-600" : log.status === "error" ? "text-rose-500" : "text-amber-600"}`}>
+                      {log.status === "success" ? "成功" : log.status === "error" ? "失败" : "进行中"}
+                    </span>
+                    <span className="text-[11px] text-stone-300">{formatRelativeTime(log.timestamp)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ====== 8. 说明区 ====== */}
+        <section className="animate-fade-in" style={{ animationDelay: "140ms" }}>
+          <SectionLabel>说明</SectionLabel>
+          <div className="bg-white rounded-2xl p-4 border border-stone-200/50 space-y-2">
+            <p className="text-[12px] text-stone-500 leading-relaxed">AI 密钥不会同步到云端</p>
+            <p className="text-[12px] text-stone-500 leading-relaxed">不登录也可以继续本地使用</p>
+            <p className="text-[12px] text-stone-500 leading-relaxed">同步前会先备份本地数据</p>
+            <p className="text-[12px] text-stone-500 leading-relaxed">如果要在手机和电脑之间同步，请在两端使用同一个同步账号</p>
+          </div>
+        </section>
       </div>
     </div>
   );
+}
+
+/* ========== 子组件 ========== */
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="w-[3px] h-3.5 rounded-full bg-violet-400" />
+      <h2 className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">{children}</h2>
+    </div>
+  );
+}
+
+function StatusRow({ label, value, valueClass = "text-stone-700" }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] text-stone-400 mb-0.5">{label}</p>
+      <p className={`text-[13px] font-semibold ${valueClass} truncate`}>{value}</p>
+    </div>
+  );
+}
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[11px] text-stone-400 font-medium block mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[13px] text-stone-700">{label}</span>
+      <button onClick={() => onChange(!value)} className={`w-10 h-[22px] rounded-full transition-colors duration-200 relative ${value ? "bg-violet-500" : "bg-stone-300"}`}>
+        <span className={`absolute top-[2px] w-[18px] h-[18px] bg-white rounded-full shadow-sm transition-transform duration-200 ${value ? "translate-x-[20px]" : "translate-x-[2px]"}`} />
+      </button>
+    </div>
+  );
+}
+
+/* ========== 工具函数 ========== */
+
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes}分钟前`;
+  if (hours < 24) return `${hours}小时前`;
+  if (days < 7) return `${days}天前`;
+
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${m}月${d}日 ${hh}:${mm}`;
 }
