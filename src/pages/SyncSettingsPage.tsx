@@ -482,15 +482,15 @@ export default function SyncSettingsPage() {
                       <input
                         type="text"
                         inputMode="numeric"
-                        maxLength={6}
+                        maxLength={8}
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                        placeholder="输入6位验证码"
+                        placeholder="输入验证码"
                         className="flex-1 px-3 py-2.5 bg-stone-50 rounded-xl text-[13px] text-stone-800 border border-stone-200/80 focus:ring-2 focus:ring-stone-300/40 focus:border-stone-300 placeholder:text-stone-300 tracking-[0.3em] text-center font-mono transition-all"
                       />
                       <button
                         onClick={handleVerifyOtp}
-                        disabled={verifying || otpCode.length < 6}
+                        disabled={verifying || otpCode.length < 4}
                         className="px-4 py-2.5 rounded-xl text-[13px] font-medium bg-stone-900 text-white active:bg-stone-800 transition-colors disabled:opacity-50 shrink-0"
                       >
                         {verifying ? "验证中…" : "验证"}
