@@ -309,3 +309,35 @@ export function updateProfileTestStatus(
   profile.lastError = status === "failed" ? error : undefined;
   saveProfiles(profiles);
 }
+
+// ============================================================
+// 主题提取工具（供 Workspace 等地方使用）
+// ============================================================
+
+export function getExistingTopics(records: { topic?: string }[]): string[] {
+  const topicSet = new Set<string>();
+  records.forEach((r) => {
+    if (r.topic && r.topic.trim()) topicSet.add(r.topic.trim());
+  });
+  return Array.from(topicSet).sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+export function getRecentTopTopics(
+  records: { topic?: string; createdAt: string }[],
+  limit = 6
+): string[] {
+  const recentCounts = new Map<string, number>();
+  const now = Date.now();
+  records.forEach((r) => {
+    if (r.topic && r.topic.trim()) {
+      const age = now - new Date(r.createdAt).getTime();
+      if (age < 30 * 24 * 60 * 60 * 1000) {
+        recentCounts.set(r.topic, (recentCounts.get(r.topic) || 0) + 1);
+      }
+    }
+  });
+  return Array.from(recentCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([topic]) => topic);
+}
