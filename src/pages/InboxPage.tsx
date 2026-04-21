@@ -81,19 +81,34 @@ export default function InboxPage() {
     exitSelectMode();
   };
 
-  // 长按进入多选
+  // 长按进入多选（防误触：800ms + 移动检测）
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleTouchStart = (id: string) => {
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const handleTouchStart = (id: string, e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
     longPressTimer.current = setTimeout(() => {
       setSelectMode(true);
       setSelectedIds(new Set([id]));
-    }, 500);
+    }, 800);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos.current || !longPressTimer.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      touchStartPos.current = null;
+    }
   };
   const handleTouchEnd = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    touchStartPos.current = null;
   };
 
   // 导出
@@ -358,7 +373,8 @@ export default function InboxPage() {
                     navigate(`/record/${record.id}`);
                   }
                 }}
-                onLongPressStart={() => handleTouchStart(record.id)}
+                onLongPressStart={(e) => handleTouchStart(record.id, e)}
+                onLongPressMove={handleTouchMove}
                 onLongPressEnd={handleTouchEnd}
               />
             </div>
@@ -389,6 +405,12 @@ export default function InboxPage() {
             </div>
           )}
           <div className="flex items-center gap-2">
+            <button
+              onClick={exitSelectMode}
+              className="shrink-0 py-2.5 px-3 text-stone-400 text-[13px] font-medium active:text-stone-600 transition-colors"
+            >
+              取消
+            </button>
             <button
               onClick={handleGenerateSummary}
               disabled={selectedIds.size < 2 || synthesizing}
@@ -455,13 +477,15 @@ function RecordCard({
   selected,
   onClick,
   onLongPressStart,
+  onLongPressMove,
   onLongPressEnd,
 }: {
   record: ThoughtRecord;
   selectMode: boolean;
   selected: boolean;
   onClick: () => void;
-  onLongPressStart?: () => void;
+  onLongPressStart?: (e: React.TouchEvent) => void;
+  onLongPressMove?: (e: React.TouchEvent) => void;
   onLongPressEnd?: () => void;
 }) {
   const timeStr = formatRelativeTime(record.createdAt);
@@ -470,6 +494,7 @@ function RecordCard({
     <button
       onClick={onClick}
       onTouchStart={onLongPressStart}
+      onTouchMove={onLongPressMove}
       onTouchEnd={onLongPressEnd}
       onTouchCancel={onLongPressEnd}
       className={`w-full text-left bg-white rounded-2xl p-4 card-press border transition-all duration-200 ${

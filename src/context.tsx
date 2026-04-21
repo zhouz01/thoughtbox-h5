@@ -420,22 +420,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, []);
 
-  const filteredRecords = records.filter((r) => {
-    if (r.deletedAt) return false;
-    if (!showArchived && r.archived) return false;
-    if (showArchived && !r.archived) return false;
-    if (filterType !== "全部" && r.type !== filterType) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        r.rawText.toLowerCase().includes(q) ||
-        r.aiTitle.toLowerCase().includes(q) ||
-        r.tags.some((tag) => tag.toLowerCase().includes(q)) ||
-        r.topic.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const filteredRecords = records
+    .filter((r) => {
+      if (r.deletedAt) return false;
+      if (!showArchived && r.archived) return false;
+      if (showArchived && !r.archived) return false;
+      if (filterType !== "全部" && r.type !== filterType) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        return (
+          r.rawText.toLowerCase().includes(q) ||
+          r.aiTitle.toLowerCase().includes(q) ||
+          r.tags.some((tag) => tag.toLowerCase().includes(q)) ||
+          r.topic.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // ============================================================
   // 偏好系统操作
