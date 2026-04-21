@@ -650,6 +650,66 @@ export async function bidirectionalSync(): Promise<SyncOperationResult> {
 // 登录相关
 // ============================================================
 
+export function initSupabaseClient(): SupabaseClient | null {
+  return getSupabaseClient();
+}
+
+export async function signupWithEmailPassword(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "同步服务未配置" };
+  }
+
+  try {
+    const { error } = await client.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    saveSyncSession({ isLoggedIn: true });
+    updateSyncMeta({ lastSyncStatus: "success" });
+    addSyncLogEntry({ action: "signup", status: "success", details: `注册成功: ${email}` });
+
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "注册失败";
+    addSyncLogEntry({ action: "signup", status: "failed", error: errorMessage });
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function loginWithEmailPassword(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "同步服务未配置" };
+  }
+
+  try {
+    const { error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    saveSyncSession({ isLoggedIn: true });
+    updateSyncMeta({ lastSyncStatus: "success" });
+    addSyncLogEntry({ action: "login", status: "success", details: `登录成功: ${email}` });
+
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "登录失败";
+    addSyncLogEntry({ action: "login", status: "failed", error: errorMessage });
+    return { success: false, error: errorMessage };
+  }
+}
+
 export async function sendMagicLink(email: string): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient();
   if (!client) {

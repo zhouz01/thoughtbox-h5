@@ -16,8 +16,7 @@ export function loadRecords(): ThoughtRecord[] {
   }
 }
 
-// 别名，用于 leancloudService
-export const loadAllRecords = loadRecords;
+
 
 /**
  * 加载可见记录（排除已软删除的，用于 UI 展示）

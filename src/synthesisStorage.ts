@@ -15,8 +15,7 @@ export function loadSyntheses(): Synthesis[] {
   }
 }
 
-// 别名，用于 leancloudService
-export const loadAllSyntheses = loadSyntheses;
+
 
 /**
  * 加载可见汇总（排除已软删除的，用于 UI 展示）

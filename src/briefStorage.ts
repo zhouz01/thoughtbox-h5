@@ -15,8 +15,7 @@ export function loadBriefs(): ProjectBrief[] {
   }
 }
 
-// 别名，用于 leancloudService
-export const loadAllBriefs = loadBriefs;
+
 
 /**
  * 加载可见推进卡（排除已软删除的，用于 UI 展示）
