@@ -553,7 +553,7 @@ function RecordCard({
             <span
               className={`shrink-0 px-2 py-[3px] rounded-md text-[10px] font-medium tracking-wide ${TYPE_COLORS[record.type]}`}
             >
-              {record.type}
+              {record.aiSubType ? `${record.type} · ${record.aiSubType}` : record.type}
             </span>
           </div>
 

@@ -54,30 +54,31 @@ function isThisWeek(ts: string) {
 
 function getPromoteLevelColor(level?: PromoteLevel) {
   switch (level) {
-    case "push": return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    case "watch": return "bg-amber-50 text-amber-700 border-amber-200";
-    case "track": return "bg-blue-50 text-blue-700 border-blue-200";
+    case "建议立项": return "bg-blue-50 text-blue-700 border-blue-200";
+    case "建议行动": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "建议观察": return "bg-amber-50 text-amber-700 border-amber-200";
     default: return "bg-stone-50 text-stone-500 border-stone-200";
   }
 }
 
 function getPromoteLabel(level?: PromoteLevel) {
   switch (level) {
-    case "push": return "推进";
-    case "watch": return "观察";
-    case "track": return "跟踪";
-    default: return "待办";
+    case "建议立项": return "立项";
+    case "建议行动": return "行动";
+    case "建议观察": return "观察";
+    default: return "保存";
   }
 }
 
 function getTypeColor(type: RecordType) {
   switch (type) {
+    case "随记": return "bg-stone-100 text-stone-500 border-stone-200";
     case "灵感": return "bg-violet-50 text-violet-700 border-violet-200";
-    case "待办": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "待办": return "bg-amber-50 text-amber-700 border-amber-200";
     case "项目": return "bg-blue-50 text-blue-700 border-blue-200";
-    case "决策": return "bg-amber-50 text-amber-700 border-amber-200";
-    case "概念": return "bg-rose-50 text-rose-700 border-rose-200";
-    case "资源": return "bg-cyan-50 text-cyan-700 border-cyan-200";
+    case "问题": return "bg-rose-50 text-rose-700 border-rose-200";
+    case "复盘": return "bg-slate-100 text-slate-600 border-slate-200";
+    case "参考": return "bg-teal-50 text-teal-700 border-teal-200";
     default: return "bg-stone-50 text-stone-500 border-stone-200";
   }
 }
@@ -86,9 +87,9 @@ function getTypeColor(type: RecordType) {
    Smart Filters
    ============================================================ */
 
-const SMART_FILTERS: { id: string; label: string; predicate: (r: ThoughtRecord) => boolean }[] = [
+  const SMART_FILTERS: { id: string; label: string; predicate: (r: ThoughtRecord) => boolean }[] = [
   { id: "pending", label: "待整理", predicate: (r) => r.aiStatus === "pending" },
-  { id: "suggested", label: "建议推进", predicate: (r) => r.promoteLevel === "push" },
+  { id: "suggested", label: "建议推进", predicate: (r) => r.promoteLevel === "建议行动" || r.promoteLevel === "建议立项" },
   { id: "recentlyEdited", label: "最近编辑", predicate: (r) => !!r.userEdited },
   { id: "noFeedback", label: "未反馈", predicate: (r) => !r.feedbackStatus },
   { id: "thisWeek", label: "本周新增", predicate: (r) => isThisWeek(r.createdAt) },
@@ -241,8 +242,8 @@ export default function WorkspacePage() {
         case "created":
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         case "promote": {
-          const order: Record<string, number> = { push: 0, watch: 1, track: 2 };
-          return (order[a.promoteLevel || "" ] || 3) - (order[b.promoteLevel || ""] || 3);
+          const order: Record<string, number> = { "建议立项": 0, "建议行动": 1, "建议观察": 2, "仅保存": 3 };
+          return (order[a.promoteLevel || "" ] || 4) - (order[b.promoteLevel || ""] || 4);
         }
         case "topic":
           return (a.topic || "").localeCompare(b.topic || "");
@@ -850,7 +851,7 @@ function RecordList({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(record.type)}`}>
-                  {record.type}
+                  {record.aiSubType ? `${record.type} · ${record.aiSubType}` : record.type}
                 </span>
                 {record.promoteLevel && (
                   <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getPromoteLevelColor(record.promoteLevel)}`}>
@@ -1018,7 +1019,7 @@ function ReviewPanel({
   onNavigate: (path: string) => void;
 }) {
   const thisWeekCount = records.filter((r) => isThisWeek(r.createdAt)).length;
-  const pushCount = records.filter((r) => r.promoteLevel === "push" && !r.archived).length;
+  const pushCount = records.filter((r) => (r.promoteLevel === "建议行动" || r.promoteLevel === "建议立项") && !r.archived).length;
   const topTopic = useMemo(() => {
     const map = new Map<string, number>();
     records.forEach((r) => {
@@ -1170,14 +1171,14 @@ function TopicsPanel({
               >
                 <h3 className="text-sm font-medium text-stone-800">{r.aiTitle}</h3>
                 <p className="text-xs text-stone-400 mt-0.5 line-clamp-2">{r.rawText}</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(r.type)}`}>
-                    {r.type}
-                  </span>
-                  <span className="text-[10px] text-stone-300 ml-auto">
-                    {formatRelativeTime(r.updatedAt)}
-                  </span>
-                </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(r.type)}`}>
+              {r.aiSubType ? `${r.type} · ${r.aiSubType}` : r.type}
+            </span>
+            <span className="text-[10px] text-stone-300 ml-auto">
+              {formatRelativeTime(r.updatedAt)}
+            </span>
+          </div>
               </div>
             ))}
           </div>
@@ -1230,7 +1231,7 @@ function RecordInspector({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(record.type)}`}>
-            {record.type}
+            {record.aiSubType ? `${record.type} · ${record.aiSubType}` : record.type}
           </span>
           {record.promoteLevel && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getPromoteLevelColor(record.promoteLevel)}`}>
@@ -1248,7 +1249,7 @@ function RecordInspector({
 
       {/* Source info */}
       <div className="flex items-center gap-2 text-[11px] text-stone-400">
-        <span>{record.aiStatus === "completed" ? "AI 整理" : "本地整理"}</span>
+        <span>{record.aiStatus === "done" ? (record.organizeSource === "ai" ? "AI 整理" : "本地整理") : "整理中"}</span>
         {record.aiProfileName && <span>· {record.aiProfileName}</span>}
         {record.userEdited && <span className="text-amber-600">· 已手动调整</span>}
         {record.feedbackStatus && <span className="text-blue-600">· 已记录反馈</span>}

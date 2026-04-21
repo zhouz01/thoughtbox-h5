@@ -159,6 +159,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           aiTitle: result.title,
           aiSummary: result.summary,
           type: result.type,
+          aiSubType: result.aiSubType,
+          typeConfidence: result.typeConfidence,
+          typeReason: result.typeReason,
           tags: result.tags,
           topic: result.topic,
           promoteLevel: result.promoteLevel,
@@ -172,6 +175,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             title: result.title,
             summary: result.summary,
             type: result.type,
+            aiSubType: result.aiSubType,
+            typeConfidence: result.typeConfidence,
+            typeReason: result.typeReason,
             tags: result.tags,
             topic: result.topic,
             promoteLevel: result.promoteLevel,
@@ -207,6 +213,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               aiTitle: result.title,
               aiSummary: result.summary,
               type: result.type,
+              aiSubType: result.aiSubType,
+              typeConfidence: result.typeConfidence,
+              typeReason: result.typeReason,
               tags: result.tags,
               topic: result.topic,
               promoteLevel: result.promoteLevel,
@@ -220,6 +229,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 title: result.title,
                 summary: result.summary,
                 type: result.type,
+                aiSubType: result.aiSubType,
+                typeConfidence: result.typeConfidence,
+                typeReason: result.typeReason,
                 tags: result.tags,
                 topic: result.topic,
                 promoteLevel: result.promoteLevel,
@@ -275,23 +287,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 未配置真实 AI，使用 mock
-    const mockResult = organizeRecord(record);
-    const organized: ThoughtRecord = {
-      ...mockResult,
-      organizeSource: "mock",
-      aiOriginalResult: {
-        title: mockResult.aiTitle,
-        summary: mockResult.aiSummary,
-        type: mockResult.type,
-        tags: mockResult.tags,
-        topic: mockResult.topic,
-        promoteLevel: mockResult.promoteLevel,
-        suggestions: mockResult.suggestions,
-      },
-      userEdited: false,
-      feedbackStatus: "未反馈",
-      feedbackReasons: [],
-    };
+      const mockResult = organizeRecord(record);
+      const organized: ThoughtRecord = {
+        ...mockResult,
+        organizeSource: "mock",
+        aiOriginalResult: {
+          title: mockResult.aiTitle,
+          summary: mockResult.aiSummary,
+          type: mockResult.type,
+          aiSubType: mockResult.aiSubType,
+          tags: mockResult.tags,
+          topic: mockResult.topic,
+          promoteLevel: mockResult.promoteLevel,
+          suggestions: mockResult.suggestions,
+        },
+        userEdited: false,
+        feedbackStatus: "未反馈",
+        feedbackReasons: [],
+      };
     storageUpdate(organized);
     setRecords((prev) => prev.map((r) => (r.id === organized.id ? organized : r)));
   }, []);
@@ -333,7 +346,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         aiStatus: "pending",
         aiTitle: "",
         aiSummary: "",
-        type: "灵感",
+        type: "随记",
+        aiSubType: undefined,
+        typeConfidence: undefined,
+        typeReason: undefined,
         tags: [],
         topic: "",
         promoteLevel: "仅保存",

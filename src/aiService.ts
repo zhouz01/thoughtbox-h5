@@ -4,11 +4,11 @@ import { loadPreferences } from "./preferences";
 import { selectFewShotExamples } from "./preferenceLearning";
 import { generateId } from "./storage";
 
-const VALID_TYPES: RecordType[] = ["灵感", "项目", "待办", "参考", "问题", "复盘"];
+const VALID_TYPES: RecordType[] = ["随记", "灵感", "待办", "项目", "问题", "复盘", "参考"];
 const VALID_PROMOTES: PromoteLevel[] = ["仅保存", "建议观察", "建议行动", "建议立项"];
 
 // ============================================================
-// 一、设计师工作流版 System Prompt（保持不变）
+// 一、设计师工作流版 System Prompt（V1.9：7 主类型 + AI 子类型）
 // ============================================================
 
 const SYSTEM_PROMPT = `你是一个帮助设计师整理碎片想法的结构化助手。
@@ -24,10 +24,11 @@ const SYSTEM_PROMPT = `你是一个帮助设计师整理碎片想法的结构化
 你的输出目标：
 1. 保留原始意思，不擅自脑补
 2. 把表达整理得更清晰
-3. 帮用户判断这更像灵感、项目、待办、参考、问题还是复盘
-4. 给出简洁而具体的标签和主题
-5. 只有在适合时才给出下一步建议
-6. 下一步建议必须短、小、可执行，避免空话
+3. 帮用户判断这更像随记、灵感、待办、项目、问题、复盘还是参考
+4. 给出一个更具体的子类型，帮助用户快速理解这条记录的细分方向
+5. 给出简洁而具体的标签和主题
+6. 只有在适合时才给出下一步建议
+7. 下一步建议必须短、小、可执行，避免空话
 
 输出规则：
 - 只返回 JSON
@@ -38,28 +39,78 @@ const SYSTEM_PROMPT = `你是一个帮助设计师整理碎片想法的结构化
 字段要求：
 - title：8~18 个中文字符，具体、自然，不要空泛，不要用"想法整理""记录整理""设计优化建议"这类泛标题
 - summary：1~2 句，清楚表达核心意思，不重复原文，不写套话
-- type：只能是 灵感 / 项目 / 待办 / 参考 / 问题 / 复盘
+- type：只能是 随记 / 灵感 / 待办 / 项目 / 问题 / 复盘 / 参考
+- aiSubType：2~6 个中文字符，表达自然、具体。根据 type 和 rawText 生成一个更细的子分类
+- typeConfidence：0~1 之间的数字，表示你对 type 判断的把握程度
+- typeReason：一句话，简要说明为什么判断为这个 type（内部调试用）
 - tags：2~4 个中文标签，尽量具体，避免"设计""优化""想法"这种过泛词
 - topic：优先复用已有主题；如果需要新建主题，请用 2~6 个字的简洁中文名，不要太泛
 - promoteLevel：只能是 仅保存 / 建议观察 / 建议行动 / 建议立项
 - suggestions：0~3 条；只有在合适时输出；必须短而具体
 
-分类定义：
-- 灵感：方向、点子、观察、表达方式、结构思路，但暂时不是明确项目任务
-- 项目：已经指向某个持续推进的事项、版本、客户需求、改版方向
-- 待办：明确要执行的动作，通常可以在短期内直接开始
-- 参考：对案例、风格、作品、资料、外部内容的记录
-- 问题：卡住点、不确定点、需要判断或研究的问题
-- 复盘：对已发生事情的总结、反思、经验教训
+===== 主类型定义（严格 7 类，不允许新增） =====
 
-推进等级判断：
+1. 随记
+定义：用于记录生活片段、临时感受、日常小事、没有明确行动目标的内容。
+示例：今天突然觉得最近状态有点散 / 最近总觉得自己刷手机太多了 / 周末也许想去书店逛逛
+判断要点：没有明确的设计/工作指向，只是个人状态的随手记录。
+
+2. 灵感
+定义：用于记录创意方向、表达方式、结构想法、产品点子、设计思路。
+示例：作品集首页不应该先堆项目，应该先让我是谁更清楚 / 可以做一个给设计师记录灵感的工具
+判断要点：有新的想法、方向、表达方式的萌芽，但还不是明确的任务。
+
+3. 待办
+定义：用于记录明确要执行的动作。
+示例：这周要整理个人品牌的介绍文案 / 晚上记得买洗衣液 / 明天补一下作品集首页文案
+判断要点：有明确的动作指向，可以在短期内直接开始执行。
+
+4. 项目
+定义：用于记录持续推进的事项、多步推进的方向、长期整理内容。
+示例：准备重做个人作品集 / 想做一个记录想法并自动整理的 app
+判断要点：需要多步推进，有长期性，不是一次性能完成的动作。
+
+5. 问题
+定义：用于记录卡住点、待判断问题、不确定问题。
+示例：作品集首页到底该先讲定位还是先放案例？ / 这个视觉方向太安全了，怎么做得更有记忆点？
+判断要点：有疑问、有卡住、需要判断或研究。
+
+6. 复盘
+定义：用于记录已经发生事情的总结、反思、经验教训。
+示例：这个客户项目第二版比第一版更完整，但差异点不够集中，复盘一下 / 这次提案失败主要是叙事顺序不清楚
+判断要点：对已发生事情的回顾、总结、反思。
+
+7. 参考
+定义：用于记录明确来自外部的案例、作品、素材、文章、页面、风格、方法。
+示例：今天看到一个 SaaS 官网，留白和模块节奏很舒服，值得参考 / 收藏一个作品集案例，开头叙事很好
+判断要点：
+- 必须是外部来源的内容（看到的、收藏的、读到的）
+- 生活小事、日常感受、碎片观察，不要分到"参考"
+- 如果不确定是否来自外部，默认归为"随记"，不要误分到"参考"
+
+===== 子类型示例 =====
+根据主类型和文本内容，生成一个 2~6 字的自然子类型：
+- 随记 → 生活感受、生活提醒、日常观察、状态记录
+- 灵感 → 产品点子、表达方式、结构思路、视觉方向
+- 待办 → 生活提醒、工作事项、设计任务、文案补全
+- 项目 → 作品集结构、品牌升级、工具开发、系统整理
+- 问题 → 设计判断、方向选择、表达困惑、优先级
+- 复盘 → 客户复盘、项目复盘、提案复盘、流程复盘
+- 参考 → 网页案例、作品集案例、设计风格、交互参考
+
+===== 兜底规则 =====
+- 如果 AI 不确定主类型，默认归为"随记"，confidence 设为 0.3~0.5
+- "参考"必须严格限定为外部来源内容，不确定时不要用"参考"
+- 生活小事、日常感受、碎片观察，一律归为"随记"
+
+===== 推进等级判断 =====
 - 待办 => 通常为 建议行动
 - 项目 => 通常为 建议立项
 - 问题 => 通常为 建议观察
-- 灵感 / 参考 / 复盘 => 根据内容判断为 仅保存 或 建议观察
+- 随记 / 灵感 / 参考 / 复盘 => 根据内容判断为 仅保存 或 建议观察
 - 只有当内容已经很明确时，才给 建议行动 或 建议立项
 
-下一步建议要求：
+===== 下一步建议要求 =====
 - 必须非常小、具体、像真实工作动作
 - 优先类似：对比 3 个参考案例、补一句问题定义、写出首页第一屏文案、拆成一个最小版本、列出 2 个可选方向
 - 避免类似：深入思考、持续优化、完善体验、开展研究`;
@@ -67,7 +118,7 @@ const SYSTEM_PROMPT = `你是一个帮助设计师整理碎片想法的结构化
 // 重试时更直接的提示词
 const RETRY_PROMPT = `请严格只返回合法 JSON，不要任何额外文字。
 确保：标题具体（不要泛标题）、主题复用已有主题或新建简洁主题、建议短小可执行。
-字段：title, summary, type, tags, topic, promoteLevel, suggestions`;
+字段：title, summary, type, aiSubType, typeConfidence, typeReason, tags, topic, promoteLevel, suggestions`;
 
 // ============================================================
 // 二、Endpoint 规范化（升级：支持 providerType）
@@ -154,6 +205,9 @@ export interface AIOrganizeResult {
   title: string;
   summary: string;
   type: RecordType;
+  aiSubType?: string;
+  typeConfidence?: number;
+  typeReason?: string;
   tags: string[];
   topic: string;
   promoteLevel: PromoteLevel;
@@ -303,8 +357,36 @@ export function normalizeResult(
   if (summary.length > 60) summary = summary.slice(0, 58) + "…";
 
   // --- type ---
-  const type: RecordType = VALID_TYPES.includes(raw.type as RecordType)
-    ? (raw.type as RecordType) : "灵感";
+  let type: RecordType = VALID_TYPES.includes(raw.type as RecordType)
+    ? (raw.type as RecordType) : "随记";
+  // 兜底：如果 AI 返回的类型不在 7 类中，或置信度低，默认归为随记
+  const confidence = typeof raw.typeConfidence === "number" ? raw.typeConfidence : 0.5;
+  if (!VALID_TYPES.includes(raw.type as RecordType) || confidence < 0.4) {
+    type = "随记";
+  }
+
+  // --- aiSubType ---
+  let aiSubType = typeof raw.aiSubType === "string" ? raw.aiSubType.trim() : "";
+  if (aiSubType.length > 6) aiSubType = aiSubType.slice(0, 6);
+  if (aiSubType.length < 2) {
+    // fallback：根据主类型给默认子类型
+    const fallbackMap: Record<RecordType, string> = {
+      随记: "日常记录",
+      灵感: "创意方向",
+      待办: "待办事项",
+      项目: "项目推进",
+      问题: "待解问题",
+      复盘: "经验总结",
+      参考: "外部参考",
+    };
+    aiSubType = fallbackMap[type];
+  }
+
+  // --- typeConfidence ---
+  const typeConfidence = confidence;
+
+  // --- typeReason ---
+  const typeReason = typeof raw.typeReason === "string" ? raw.typeReason.trim() : "";
 
   // --- tags ---
   let tags: string[] = Array.isArray(raw.tags)
@@ -358,7 +440,7 @@ export function normalizeResult(
     suggestions = generateFallbackSuggestions(type, topic);
   }
 
-  return { title, summary, type, tags, topic, promoteLevel, suggestions };
+  return { title, summary, type, aiSubType, typeConfidence, typeReason, tags, topic, promoteLevel, suggestions };
 }
 
 function inferPromoteFromType(type: RecordType): PromoteLevel {
@@ -370,16 +452,25 @@ function inferPromoteFromType(type: RecordType): PromoteLevel {
   }
 }
 
+/** 格式化类型展示：主类型 + 子类型 */
+export function formatTypeLabel(record: { type: RecordType; aiSubType?: string }): string {
+  if (record.aiSubType && record.aiSubType !== record.type) {
+    return `${record.type} · ${record.aiSubType}`;
+  }
+  return record.type;
+}
+
 function generateFallbackSuggestions(type: RecordType, _topic: string): string[] {
   const pool: Record<RecordType, string[]> = {
+    随记: ["记录当下的感受", "回顾时看看是否有变化"],
     灵感: ["找 3 个类似参考", "写一句核心描述"],
-    项目: ["拆成最小版本", "列出关键里程碑"],
     待办: ["拆成执行步骤", "设定完成时间"],
-    参考: ["标注可复用要点", "关联到现有项目"],
+    项目: ["拆成最小版本", "列出关键里程碑"],
     问题: ["列出 2 个可能方向", "写清问题上下文"],
     复盘: ["提取 3 条核心教训", "标注下次改进点"],
+    参考: ["标注可复用要点", "关联到现有项目"],
   };
-  return pool[type] || pool["灵感"];
+  return pool[type] || pool["随记"];
 }
 
 // ============================================================
@@ -409,6 +500,8 @@ export function needsRetry(result: Partial<AIOrganizeResult>): boolean {
   if (!result.topic) missingFields++;
   if (missingFields >= 3) return true;
   if (result.title && isGenericTitle(result.title)) return true;
+  // 如果 type 不在 7 类中，需要重试
+  if (result.type && !VALID_TYPES.includes(result.type as RecordType)) return true;
   if (
     (result.promoteLevel === "建议行动" || result.promoteLevel === "建议立项") &&
     (!Array.isArray(result.suggestions) || result.suggestions.length === 0)
@@ -471,6 +564,7 @@ async function callAI(options: OrganizeOptions): Promise<AIOrganizeResult> {
           output: {
             title: e.result.title,
             type: e.result.type,
+            aiSubType: e.result.aiSubType,
             tags: e.result.tags,
             topic: e.result.topic,
             promoteLevel: e.result.promoteLevel,
@@ -623,16 +717,26 @@ export async function testProfileConnection(profile: AIProfile): Promise<{ ok: b
 // ============================================================
 
 export const TEST_SAMPLES = [
-  "作品集首页不要一上来就堆项目，应该先让我是谁更清楚",
-  "onboarding 也许应该更像引导卡片，而不是教程说明",
-  "客户 A 首页 CTA 太理性了，少一点情绪推动",
-  "研究一下设计系统里的组件命名方式，感觉现在太乱",
-  "这个视觉方向有点安全，怎么做得更有记忆点",
+  // 1. 生活随记 → 随记
+  "今天突然觉得最近状态有点散，需要调整一下节奏",
+  // 2. 外部参考 → 参考
   "今天看到一个 SaaS 官网，留白和模块节奏很舒服，值得参考",
-  "也许可以把作品集里的 case study 模板化，减少重复劳动",
-  "这周要整理个人品牌的介绍文案",
-  "想做一套柔和但不幼稚的插画风格",
+  // 3. 待办 → 待办
+  "这周要整理个人品牌的介绍文案，不能再拖了",
+  // 4. 项目 → 项目
+  "准备重做个人作品集，需要重新梳理结构和叙事",
+  // 5. 问题 → 问题
+  "作品集首页到底该先讲定位还是先放案例？",
+  // 6. 复盘 → 复盘
   "这个客户项目第二版比第一版更完整，但差异点不够集中，复盘一下",
+  // 7. 灵感 → 灵感
+  "作品集首页不应该先堆项目，应该先让我是谁更清楚",
+  // 8. 随记（日常小事）→ 随记
+  "周末也许想去书店逛逛，找点灵感",
+  // 9. 参考（作品集案例）→ 参考
+  "收藏一个作品集案例，开头叙事很好，值得学习",
+  // 10. 待办（明确动作）→ 待办
+  "明天补一下作品集首页文案，把 hero 区的表达再打磨一下",
 ];
 
 if (typeof window !== "undefined") {

@@ -316,8 +316,8 @@ export default function RecordDetailPage() {
                 />
               </FieldGroup>
 
-              {/* 类型 */}
-              <FieldGroup label="类型">
+              {/* 建议类型 */}
+              <FieldGroup label="建议类型">
                 <div className="flex flex-wrap gap-1.5">
                   {RECORD_TYPES.map((t) => (
                     <button
@@ -460,11 +460,18 @@ export default function RecordDetailPage() {
                 <p className="text-[13px] text-stone-600 leading-[1.7]">{record.aiSummary}</p>
               </FieldGroup>
 
-              {/* 类型 */}
-              <FieldGroup label="类型">
-                <span className={`inline-block px-2.5 py-[5px] rounded-lg text-[11px] font-medium ${TYPE_COLORS[record.type]}`}>
-                  {record.type}
-                </span>
+              {/* 建议类型 */}
+              <FieldGroup label="建议类型">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block px-2.5 py-[5px] rounded-lg text-[11px] font-medium ${TYPE_COLORS[record.type]}`}>
+                    {record.type}
+                  </span>
+                  {record.aiSubType && (
+                    <span className="text-[11px] text-stone-400">
+                      {record.aiSubType}
+                    </span>
+                  )}
+                </div>
               </FieldGroup>
 
               {/* 标签 */}

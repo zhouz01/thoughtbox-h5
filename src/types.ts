@@ -1,4 +1,4 @@
-export type RecordType = "灵感" | "项目" | "待办" | "参考" | "问题" | "复盘";
+export type RecordType = "随记" | "灵感" | "待办" | "项目" | "问题" | "复盘" | "参考";
 export type PromoteLevel = "仅保存" | "建议观察" | "建议行动" | "建议立项";
 export type AiStatus = "pending" | "done";
 export type OrganizeSource = "mock" | "ai";
@@ -41,6 +41,9 @@ export interface AIOriginalResult {
   title: string;
   summary: string;
   type: string;
+  aiSubType?: string;
+  typeConfidence?: number;
+  typeReason?: string;
   tags: string[];
   topic: string;
   promoteLevel: string;
@@ -56,6 +59,9 @@ export interface ThoughtRecord {
   aiTitle: string;
   aiSummary: string;
   type: RecordType;
+  aiSubType?: string;           // AI 自动生成的子类型（2~6 字）
+  typeConfidence?: number;      // 类型判断置信度 0~1
+  typeReason?: string;          // 类型判断原因（内部调试）
   tags: string[];
   topic: string;
   promoteLevel: PromoteLevel;
@@ -120,7 +126,7 @@ export interface AIPreferences {
   lastUpdatedAt: string;
 }
 
-export const RECORD_TYPES: RecordType[] = ["灵感", "项目", "待办", "参考", "问题", "复盘"];
+export const RECORD_TYPES: RecordType[] = ["随记", "灵感", "待办", "项目", "问题", "复盘", "参考"];
 export const PROMOTE_LEVELS: PromoteLevel[] = ["仅保存", "建议观察", "建议行动", "建议立项"];
 
 export const FEEDBACK_REASONS = [
@@ -136,12 +142,13 @@ export const FEEDBACK_REASONS = [
 
 /* 类型配色——更沉稳、低饱和度 */
 export const TYPE_COLORS: Record<RecordType, string> = {
+  随记: "bg-stone-100 text-stone-500",
   灵感: "bg-violet-50 text-violet-600",
-  项目: "bg-blue-50 text-blue-600",
   待办: "bg-amber-50 text-amber-600",
-  参考: "bg-teal-50 text-teal-600",
+  项目: "bg-blue-50 text-blue-600",
   问题: "bg-rose-50 text-rose-600",
   复盘: "bg-slate-100 text-slate-600",
+  参考: "bg-teal-50 text-teal-600",
 };
 
 /* 推进等级配色——更克制 */
